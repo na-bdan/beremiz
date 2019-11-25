@@ -36,10 +36,14 @@ import os
 import traceback
 import types
 import shutil
+from operator import add
+from functools import reduce
+from builtins import str as text
+from past.builtins import execfile
+
 from lxml import etree
 
 from xmlclass import GenerateParserFromXSDstring
-
 from PLCControler import LOCATION_CONFNODE
 from editors.ConfTreeNodeEditor import ConfTreeNodeEditor
 
@@ -96,9 +100,6 @@ class ConfigTreeNode(object):
     def ConfNodeXmlFilePath(self, CTNName=None):
         return os.path.join(self.CTNPath(CTNName), "confnode.xml")
 
-    def ConfNodePath(self):
-        return os.path.join(self.CTNParent.ConfNodePath(), self.CTNType)
-
     def CTNPath(self, CTNName=None, project_path=None):
         if not CTNName:
             CTNName = self.CTNName()
@@ -118,6 +119,12 @@ class ConfigTreeNode(object):
         if parent != "":
             return parent + "." + self.CTNName()
         return self.BaseParams.getName()
+
+    def CTNSearch(self, criteria):
+        # TODO match config's fields name and fields contents
+        return reduce(add, [
+            CTNChild.CTNSearch(criteria)
+            for CTNChild in self.IterChildren()], [])
 
     def GetIconName(self):
         return None
@@ -277,7 +284,7 @@ class ConfigTreeNode(object):
         LDFLAGS = []
         if CTNLDFLAGS is not None:
             # LDFLAGS can be either string
-            if isinstance(CTNLDFLAGS, str) or isinstance(CTNLDFLAGS, unicode):
+            if isinstance(CTNLDFLAGS, (str, text)):
                 LDFLAGS += [CTNLDFLAGS]
             # or list of strings
             elif isinstance(CTNLDFLAGS, list):
@@ -462,20 +469,23 @@ class ConfigTreeNode(object):
     def GetContextualMenuItems(self):
         return None
 
-    def _OpenView(self, name=None, onlyopened=False):
-        if self.EditorType is not None:
+    def GetView(self):
+        if self._View is None and self.EditorType is not None:
             app_frame = self.GetCTRoot().AppFrame
-            if self._View is None and not onlyopened:
+            self._View = self.EditorType(app_frame.TabsOpened, self, app_frame)
 
-                self._View = self.EditorType(app_frame.TabsOpened, self, app_frame)
+        return self._View
 
-            if self._View is not None:
-                if name is None:
-                    name = self.CTNFullName()
-                app_frame.EditProjectElement(self._View, name)
+    def _OpenView(self, name=None, onlyopened=False):
+        view = self.GetView()
 
-            return self._View
-        return None
+        if view is not None:
+            if name is None:
+                name = self.CTNFullName()
+            app_frame = self.GetCTRoot().AppFrame
+            app_frame.EditProjectElement(view, name)
+
+        return view
 
     def _CloseView(self, view):
         app_frame = self.GetCTRoot().AppFrame
@@ -626,8 +636,8 @@ class ConfigTreeNode(object):
                     self.GetCTRoot().logger.write_warning(XSDSchemaErrorMessage.format(a1=fname, a2=lnum, a3=src))
                 self.MandatoryParams = ("BaseParams", self.BaseParams)
                 basexmlfile.close()
-            except Exception, exc:
-                msg = _("Couldn't load confnode base parameters {a1} :\n {a2}").format(a1=ConfNodeName, a2=unicode(exc))
+            except Exception as exc:
+                msg = _("Couldn't load confnode base parameters {a1} :\n {a2}").format(a1=ConfNodeName, a2=text(exc))
                 self.GetCTRoot().logger.write_error(msg)
                 self.GetCTRoot().logger.write_error(traceback.format_exc())
 
@@ -643,8 +653,8 @@ class ConfigTreeNode(object):
                 setattr(self, name, obj)
                 self.CTNParams = (name, obj)
                 xmlfile.close()
-            except Exception, exc:
-                msg = _("Couldn't load confnode parameters {a1} :\n {a2}").format(a1=ConfNodeName, a2=unicode(exc))
+            except Exception as exc:
+                msg = _("Couldn't load confnode parameters {a1} :\n {a2}").format(a1=ConfNodeName, a2=text(exc))
                 self.GetCTRoot().logger.write_error(msg)
                 self.GetCTRoot().logger.write_error(traceback.format_exc())
 
@@ -656,7 +666,18 @@ class ConfigTreeNode(object):
                 pname, ptype = CTNDir.split(NameTypeSeparator)
                 try:
                     self.CTNAddChild(pname, ptype)
-                except Exception, exc:
-                    msg = _("Could not add child \"{a1}\", type {a2} :\n{a3}\n").format(a1=pname, a2=ptype, a3=unicode(exc))
+                except Exception as exc:
+                    msg = _("Could not add child \"{a1}\", type {a2} :\n{a3}\n").format(a1=pname, a2=ptype, a3=text(exc))
                     self.GetCTRoot().logger.write_error(msg)
                     self.GetCTRoot().logger.write_error(traceback.format_exc())
+
+
+    def FatalError(self, message):
+        """ Raise an exception that will trigger error message intended to 
+            the user, but without backtrace since it is not a software error """
+
+        raise UserAddressedException(message)
+
+class UserAddressedException(Exception):
+    pass
+

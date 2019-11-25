@@ -27,13 +27,17 @@ from __future__ import absolute_import
 import os
 import re
 import traceback
-
+from builtins import str as text
 from copy import deepcopy
+
 from lxml import etree
 from xmlclass import GenerateParserFromXSDstring
 
 from PLCControler import UndoBuffer
 from ConfigTreeNode import XSDSchemaErrorMessage
+
+from plcopen.plcopen import TestTextElement
+from editors.CodeFileEditor import GetSectionsText
 
 CODEFILE_XSD = """<?xml version="1.0" encoding="ISO-8859-1" ?>
 <xsd:schema xmlns:xsd="http://www.w3.org/2001/XMLSchema"
@@ -113,8 +117,8 @@ class CodeFile(object):
                 '<%s>' % self.CODEFILE_NAME,
                 '<%s xmlns:xhtml="http://www.w3.org/1999/xhtml">' % self.CODEFILE_NAME)
             for cre, repl in [
-                    (re.compile("(?<!<xhtml:p>)(?:<!\[CDATA\[)"), "<xhtml:p><![CDATA["),
-                    (re.compile("(?:]]>)(?!</xhtml:p>)"), "]]></xhtml:p>")]:
+                    (re.compile(r"(?<!<xhtml:p>)(?:<!\[CDATA\[)"), "<xhtml:p><![CDATA["),
+                    (re.compile(r"(?:]]>)(?!</xhtml:p>)"), "]]></xhtml:p>")]:
                 codefile_xml = cre.sub(repl, codefile_xml)
 
             try:
@@ -123,8 +127,8 @@ class CodeFile(object):
                     (fname, lnum, src) = ((self.CODEFILE_NAME,) + error)
                     self.GetCTRoot().logger.write_warning(XSDSchemaErrorMessage.format(a1=fname, a2=lnum, a3=src))
                 self.CreateCodeFileBuffer(True)
-            except Exception, exc:
-                msg = _("Couldn't load confnode parameters {a1} :\n {a2}").format(a1=self.CTNName(), a2=unicode(exc))
+            except Exception as exc:
+                msg = _("Couldn't load confnode parameters {a1} :\n {a2}").format(a1=self.CTNName(), a2=text(exc))
                 self.GetCTRoot().logger.write_error(msg)
                 self.GetCTRoot().logger.write_error(traceback.format_exc())
                 raise Exception
@@ -207,6 +211,19 @@ class CodeFile(object):
                     for variable in variables
                     if variable.getonchange()])
         return ret
+
+    def CTNSearch(self, criteria):
+        variables = self.GetVariables()
+        results = []
+        tagname = self.CTNFullName()
+        for index, var in enumerate(variables):
+            varname = var["Name"]
+            results.extend([((tagname, "var_inout", index, "name"),) + result
+                            for result in TestTextElement(varname, criteria)])
+        results.extend([((tagname, "body"),) + result
+                        for result in TestTextElement(
+                            GetSectionsText(self, lambda x:""), criteria)])
+        return results
 
 # -------------------------------------------------------------------------------
 #                      Current Buffering Management Functions

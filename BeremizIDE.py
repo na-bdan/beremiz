@@ -25,17 +25,17 @@
 
 
 from __future__ import absolute_import
+from __future__ import print_function
 import os
 import sys
 import tempfile
 import shutil
 import random
-import types
 import time
 from time import time as gettime
 from threading import Lock, Timer, currentThread
 
-import cPickle
+from six.moves import cPickle, xrange
 import wx.lib.buttons
 import wx.lib.statbmp
 import wx.stc
@@ -209,10 +209,6 @@ class LogPseudoFile(object):
     def write_error(self, s):
         self.write(s, self.red_yellow)
 
-    def writeyield(self, s):
-        self.write(s)
-        wx.GetApp().Yield()
-
     def flush(self):
         # Temporary deactivate read only mode on StyledTextCtrl for clearing
         # text. It seems that text modifications, even programmatically, are
@@ -280,17 +276,14 @@ class Beremiz(IDEFrame):
                                (wx.ID_PRINT, "print", _(u'Print'), None)])
 
     def _RecursiveAddMenuItems(self, menu, items):
-        for name, text, help, children in items:
-            new_id = wx.NewId()
+        for name, text, helpstr, children in items:
             if len(children) > 0:
                 new_menu = wx.Menu(title='')
-                menu.AppendMenu(new_id, text, new_menu)
+                menu.AppendMenu(wx.ID_ANY, text, new_menu)
                 self._RecursiveAddMenuItems(new_menu, children)
             else:
-                AppendMenu(menu, help=help, id=new_id,
-                           kind=wx.ITEM_NORMAL, text=text)
-                self.Bind(wx.EVT_MENU, self.GetAddConfNodeFunction(name),
-                          id=new_id)
+                item = menu.Append(wx.ID_ANY, text, helpstr)
+                self.Bind(wx.EVT_MENU, self.GetAddConfNodeFunction(name), item)
 
     def _init_coll_AddMenu_Items(self, parent):
         IDEFrame._init_coll_AddMenu_Items(self, parent, False)
@@ -303,9 +296,8 @@ class Beremiz(IDEFrame):
                 _(u'Community support'),
                 wx.OK | wx.ICON_INFORMATION)
 
-        id = wx.NewId()
-        parent.Append(help='', id=id, kind=wx.ITEM_NORMAL, text=_(u'Community support'))
-        self.Bind(wx.EVT_MENU, handler, id=id)
+        item = parent.Append(wx.ID_ANY, _(u'Community support'), '')
+        self.Bind(wx.EVT_MENU, handler, item)
 
         parent.Append(help='', id=wx.ID_ABOUT,
                       kind=wx.ITEM_NORMAL, text=_(u'About'))
@@ -328,10 +320,6 @@ class Beremiz(IDEFrame):
         inspectorID = wx.NewId()
         self.Bind(wx.EVT_MENU, self.OnOpenWidgetInspector, id=inspectorID)
         accels = [wx.AcceleratorEntry(wx.ACCEL_CTRL | wx.ACCEL_ALT, ord('I'), inspectorID)]
-
-        keyID = wx.NewId()
-        self.Bind(wx.EVT_MENU, self.SwitchFullScrMode, id=keyID)
-        accels += [wx.AcceleratorEntry(wx.ACCEL_NORMAL, wx.WXK_F12, keyID)]
 
         for method, shortcut in [("Stop",     wx.WXK_F4),
                                  ("Run",      wx.WXK_F5),
@@ -619,11 +607,7 @@ class Beremiz(IDEFrame):
     def AddToDoBeforeQuit(self, Thing):
         self.ToDoBeforeQuit.append(Thing)
 
-    def OnCloseFrame(self, event):
-        for evt_type in [wx.EVT_SET_FOCUS,
-                         wx.EVT_KILL_FOCUS,
-                         wx.stc.EVT_STC_UPDATEUI]:
-            self.LogConsole.Unbind(evt_type)
+    def TryCloseFrame(self):
         if self.CTR is None or self.CheckSaveBeforeClosing(_("Close Application")):
             if self.CTR is not None:
                 self.CTR.KillDebugThread()
@@ -635,8 +619,15 @@ class Beremiz(IDEFrame):
                 Thing()
             self.ToDoBeforeQuit = []
 
+            return True
+        return False
+
+    def OnCloseFrame(self, event):
+        if self.TryCloseFrame():
+            self.LogConsole.Disconnect(-1, -1, wx.wxEVT_KILL_FOCUS)
             event.Skip()
         else:
+            # prevent event to continue, i.e. cancel closing
             event.Veto()
 
     def RefreshFileMenu(self):
@@ -692,7 +683,7 @@ class Beremiz(IDEFrame):
         except Exception:
             recent_projects = []
 
-        while self.RecentProjectsMenu.GetMenuItemCount() > len(recent_projects):
+        while self.RecentProjectsMenu.GetMenuItemCount() > 0:
             item = self.RecentProjectsMenu.FindItemByPosition(0)
             self.RecentProjectsMenu.RemoveItem(item)
 
@@ -700,16 +691,8 @@ class Beremiz(IDEFrame):
         for idx, projectpath in enumerate(recent_projects):
             text = u'&%d: %s' % (idx + 1, projectpath)
 
-            if idx < self.RecentProjectsMenu.GetMenuItemCount():
-                item = self.RecentProjectsMenu.FindItemByPosition(idx)
-                id = item.GetId()
-                item.SetItemLabel(text)
-                self.Disconnect(id, id, wx.EVT_BUTTON._getEvtType())
-            else:
-                id = wx.NewId()
-                AppendMenu(self.RecentProjectsMenu, help='', id=id,
-                           kind=wx.ITEM_NORMAL, text=text)
-            self.Bind(wx.EVT_MENU, self.GenerateOpenRecentProjectFunction(projectpath), id=id)
+            item = self.RecentProjectsMenu.Append(wx.ID_ANY, text, '')
+            self.Bind(wx.EVT_MENU, self.GenerateOpenRecentProjectFunction(projectpath), item)
 
     def GenerateOpenRecentProjectFunction(self, projectpath):
         def OpenRecentProject(event):
@@ -721,7 +704,7 @@ class Beremiz(IDEFrame):
 
     def GenerateMenuRecursive(self, items, menu):
         for kind, infos in items:
-            if isinstance(kind, types.ListType):
+            if isinstance(kind, list):
                 text, id = infos
                 submenu = wx.Menu('')
                 self.GenerateMenuRecursive(kind, submenu)
@@ -743,16 +726,16 @@ class Beremiz(IDEFrame):
     def RefreshStatusToolBar(self):
         StatusToolBar = self.Panes["StatusToolBar"]
         StatusToolBar.ClearTools()
+        StatusToolBar.SetMinSize(StatusToolBar.GetToolBitmapSize())
 
         if self.CTR is not None:
 
             for confnode_method in self.CTR.StatusMethods:
                 if "method" in confnode_method and confnode_method.get("shown", True):
-                    id = wx.NewId()
-                    StatusToolBar.AddSimpleTool(
-                        id, GetBitmap(confnode_method.get("bitmap", "Unknown")),
+                    tool = StatusToolBar.AddSimpleTool(
+                        wx.ID_ANY, GetBitmap(confnode_method.get("bitmap", "Unknown")),
                         confnode_method["tooltip"])
-                    self.Bind(wx.EVT_MENU, self.GetMenuCallBackFunction(confnode_method["method"]), id=id)
+                    self.Bind(wx.EVT_MENU, self.GetMenuCallBackFunction(confnode_method["method"]), tool)
 
             StatusToolBar.Realize()
             self.AUIManager.GetPane("StatusToolBar").BestSize(StatusToolBar.GetBestSize()).Show()
@@ -989,20 +972,17 @@ class Beremiz(IDEFrame):
             if confnode is not None:
                 menu_items = confnode.GetContextualMenuItems()
                 if menu_items is not None:
-                    for text, help, callback in menu_items:
-                        new_id = wx.NewId()
-                        confnode_menu.Append(help=help, id=new_id, kind=wx.ITEM_NORMAL, text=text)
-                        self.Bind(wx.EVT_MENU, callback, id=new_id)
+                    for text, helpstr, callback in menu_items:
+                        item = confnode_menu.Append(wx.ID_ANY, text, helpstr)
+                        self.Bind(wx.EVT_MENU, callback, item)
                 else:
-                    for name, XSDClass, help in confnode.CTNChildrenTypes:
+                    for name, XSDClass, helpstr in confnode.CTNChildrenTypes:
                         if not hasattr(XSDClass, 'CTNMaxCount') or not confnode.Children.get(name) \
                                 or len(confnode.Children[name]) < XSDClass.CTNMaxCount:
-                            new_id = wx.NewId()
-                            confnode_menu.Append(help=help, id=new_id, kind=wx.ITEM_NORMAL, text=_("Add") + " " + name)
-                            self.Bind(wx.EVT_MENU, self.GetAddConfNodeFunction(name, confnode), id=new_id)
-            new_id = wx.NewId()
-            AppendMenu(confnode_menu, help='', id=new_id, kind=wx.ITEM_NORMAL, text=_("Delete"))
-            self.Bind(wx.EVT_MENU, self.GetDeleteMenuFunction(confnode), id=new_id)
+                            item = confnode_menu.Append(wx.ID_ANY, _("Add") + " " + name, helpstr)
+                            self.Bind(wx.EVT_MENU, self.GetAddConfNodeFunction(name, confnode), item)
+            item = confnode_menu.Append(wx.ID_ANY, _("Delete"))
+            self.Bind(wx.EVT_MENU, self.GetDeleteMenuFunction(confnode), item)
 
             self.PopupMenu(confnode_menu)
             confnode_menu.Destroy()
@@ -1037,6 +1017,14 @@ class Beremiz(IDEFrame):
                 self.CTR._OpenView(onlyopened=True)
             else:
                 IDEFrame.ProjectTreeItemSelect(self, select_item)
+
+    def GetProjectElementWindow(self, element, tagname):
+        is_a_CTN_tagname = len(tagname.split("::")) == 1
+        if is_a_CTN_tagname:
+            confnode = self.CTR.GetChildByName(tagname)
+            return confnode.GetView()
+        else:
+            return IDEFrame.GetProjectElementWindow(self, element, tagname)
 
     def SelectProjectTreeItem(self, tagname):
         if self.ProjectTree is not None:

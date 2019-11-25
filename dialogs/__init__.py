@@ -27,6 +27,7 @@
 
 from __future__ import absolute_import
 
+from dialogs.CommentEditDialog import CommentEditDialog
 from dialogs.ConnectionDialog import ConnectionDialog
 from dialogs.ActionBlockDialog import ActionBlockDialog
 from dialogs.FBDBlockDialog import FBDBlockDialog
@@ -48,4 +49,5 @@ from dialogs.PouTransitionDialog import PouTransitionDialog
 from dialogs.PouActionDialog import PouActionDialog
 from dialogs.FindInPouDialog import FindInPouDialog
 from dialogs.BrowseValuesLibraryDialog import BrowseValuesLibraryDialog
-from dialogs.DiscoveryDialog import DiscoveryDialog
+from dialogs.UriEditor import UriEditor
+from dialogs.IDManager import IDManager

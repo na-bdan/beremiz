@@ -28,11 +28,11 @@ import os
 import re
 import operator
 import hashlib
-
+from functools import reduce
 from util.ProcessLogger import ProcessLogger
 
 
-includes_re = re.compile('\s*#include\s*["<]([^">]*)[">].*')
+includes_re = re.compile(r'\s*#include\s*["<]([^">]*)[">].*')
 
 
 class toolchain_makefile(object):
@@ -47,20 +47,20 @@ class toolchain_makefile(object):
             self.buildpath = buildpath
             self.md5key = None
 
-    def GetBinaryCode(self):
+    def GetBinaryPath(self):
         return None
 
     def _GetMD5FileName(self):
         return os.path.join(self.buildpath, "lastbuildPLC.md5")
 
-    def ResetBinaryCodeMD5(self):
+    def ResetBinaryMD5(self):
         self.md5key = None
         try:
             os.remove(self._GetMD5FileName())
         except Exception:
             pass
 
-    def GetBinaryCodeMD5(self):
+    def GetBinaryMD5(self):
         if self.md5key is not None:
             return self.md5key
         else:

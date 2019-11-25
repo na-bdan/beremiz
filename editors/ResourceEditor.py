@@ -27,6 +27,7 @@ from __future__ import absolute_import
 import wx
 import wx.lib.buttons
 import wx.grid
+from six.moves import xrange
 
 from graphics.GraphicCommons import REFRESH_HIGHLIGHT_PERIOD, ERROR_HIGHLIGHT
 from controls import CustomGrid, CustomTable, DurationCellEditor
@@ -81,9 +82,6 @@ def GetTaskTriggeringOptions():
     return [_("Interrupt"), _("Cyclic")]
 
 
-TASKTRIGGERINGOPTIONS_DICT = dict([(_(option), option) for option in GetTaskTriggeringOptions()])
-
-
 def SingleCellEditor(*x):
     return wx.grid.GridCellChoiceEditor()
 
@@ -98,7 +96,6 @@ def GetInstancesTableColnames():
 
 
 class ResourceTable(CustomTable):
-
     """
     A custom wx.grid.Grid Table using user supplied data
     """
@@ -107,6 +104,8 @@ class ResourceTable(CustomTable):
         CustomTable.__init__(self, parent, data, colnames)
         self.ColAlignements = []
         self.ColSizes = []
+        self.TASKTRIGGERINGOPTIONS_DICT = dict([(_(option), option)
+                                                for option in GetTaskTriggeringOptions()])
 
     def GetColAlignements(self):
         return self.ColAlignements
@@ -132,7 +131,7 @@ class ResourceTable(CustomTable):
         if col < len(self.colnames):
             colname = self.GetColLabelValue(col, False)
             if colname == "Triggering":
-                value = TASKTRIGGERINGOPTIONS_DICT[value]
+                value = self.TASKTRIGGERINGOPTIONS_DICT[value]
             self.data[row][colname] = value
 
     def _updateColAttrs(self, grid):
@@ -500,6 +499,8 @@ class ResourceEditor(EditorPanel):
                     name = self.InstancesTable.GetValueByName(i, "Task").upper()
                     if old_name == name:
                         self.InstancesTable.SetValueByName(i, "Task", new_name)
+        if self.TasksTable.GetColLabelValue(col, False) == "Triggering":
+            self.TasksTable.SetValueByName(row, "Interval", "T#20ms")
         self.RefreshModel()
         colname = self.TasksTable.GetColLabelValue(col, False)
         if colname in ["Triggering", "Name", "Single", "Interval"]:
