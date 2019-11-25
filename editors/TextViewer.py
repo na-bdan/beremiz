@@ -24,11 +24,13 @@
 
 
 from __future__ import absolute_import
+from __future__ import division
 import re
-from types import *
+from functools import reduce
 
 import wx
 import wx.stc
+from six.moves import xrange
 
 from graphics.GraphicCommons import ERROR_HIGHLIGHT, SEARCH_RESULT_HIGHLIGHT, REFRESH_HIGHLIGHT_PERIOD
 from plcopen.structures import ST_BLOCK_START_KEYWORDS, IEC_BLOCK_START_KEYWORDS, LOCATIONDATATYPES
@@ -892,7 +894,7 @@ class TextViewer(EditorPanel):
                 if self.TextSyntax in ["ST", "ALL"]:
                     indent = self.Editor.GetLineIndentation(line)
                     if LineStartswith(lineText.strip(), self.BlockStartKeywords):
-                        indent = (indent / 2 + 1) * 2
+                        indent = (indent // 2 + 1) * 2
                     self.Editor.AddText("\n" + " " * indent)
                     key_handled = True
             elif key == wx.WXK_BACK:
@@ -901,7 +903,7 @@ class TextViewer(EditorPanel):
                         indent = self.Editor.GetColumn(self.Editor.GetCurrentPos())
                         if lineText.strip() == "" and len(lineText) > 0 and indent > 0:
                             self.Editor.DelLineLeft()
-                            self.Editor.AddText(" " * ((max(0, indent - 1) / 2) * 2))
+                            self.Editor.AddText(" " * ((max(0, indent - 1) // 2) * 2))
                             key_handled = True
             if not key_handled:
                 event.Skip()
@@ -963,4 +965,5 @@ class TextViewer(EditorPanel):
                 self.StartStyling(highlight_start_pos, 0xff)
                 self.SetStyling(highlight_end_pos - highlight_start_pos, highlight_type)
                 self.StartStyling(highlight_start_pos, 0x00)
-                self.SetStyling(len(self.Editor.GetText()) - highlight_end_pos, wx.stc.STC_STYLE_DEFAULT)
+                until_end = max(0, len(self.Editor.GetText()) - highlight_end_pos)
+                self.SetStyling(until_end, wx.stc.STC_STYLE_DEFAULT)

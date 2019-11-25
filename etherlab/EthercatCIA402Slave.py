@@ -9,51 +9,44 @@
 #
 # See COPYING file for copyrights details.
 
+from __future__ import absolute_import
 import os
 
 import wx
 
-from PLCControler import LOCATION_CONFNODE, LOCATION_MODULE, LOCATION_GROUP, \
-    LOCATION_VAR_INPUT, LOCATION_VAR_OUTPUT, LOCATION_VAR_MEMORY
+from PLCControler import LOCATION_CONFNODE, LOCATION_VAR_INPUT
 
-from MotionLibrary import Headers, AxisXSD
-from EthercatSlave import _EthercatSlaveCTN, _CommonSlave
-from ConfigEditor import CIA402NodeEditor
+from MotionLibrary import AxisXSD
+from etherlab.EthercatSlave import _EthercatSlaveCTN, _CommonSlave
+from etherlab.ConfigEditor import CIA402NodeEditor
 
-#HSAHN 2015.07.26
-#remove NODE_VARIABLES's optional items.
-#As for now, optional items will be added dynamicaly.
+# Definition of node variables that have to be mapped in PDO
+# [(name, index, subindex, type,
+#   direction for master ('I': input, 'Q': output)),...]
 NODE_VARIABLES = [
-    ("ControlWord", 0x6040, 0x00, "UINT", "Q"),
-    ("ModesOfOperation", 0x6060, 0x00, "SINT", "Q"),
-    ("StatusWord", 0x6041, 0x00, "UINT", "I"),
+    ("ControlWord",             0x6040, 0x00, "UINT", "Q"),
+    ("TargetPosition",          0x607a, 0x00, "DINT", "Q"),
+    ("TargetVelocity",          0x60ff, 0x00, "DINT", "Q"),
+    ("TargetTorque",            0x6071, 0x00, "INT",  "Q"),
+    ("ModesOfOperation",        0x6060, 0x00, "SINT", "Q"),
+    ("StatusWord",              0x6041, 0x00, "UINT", "I"),
     ("ModesOfOperationDisplay", 0x6061, 0x00, "SINT", "I"),
+    ("ActualPosition",          0x6064, 0x00, "DINT", "I"),
+    ("ActualVelocity",          0x606c, 0x00, "DINT", "I"),
+    ("ActualTorque",            0x6077, 0x00, "INT",  "I"),
 ]
-
-#HSAHN 2015.07.26
-#reference variable
-ADD_NODE_VARIABLES = ({'name':"TargetPosition"   , 'index':0x607a, 'sub-index':0x00, 'type':"DINT", 'direction':"Q"},
-                      {'name':"TargetVelocity"   , 'index':0x60ff, 'sub-index':0x00, 'type':"DINT", 'direction':"Q"},
-                      {'name':"TargetTorque"     , 'index':0x6071, 'sub-index':0x00, 'type':"INT",  'direction':"Q"},
-                      {'name':"ActualPosition"   , 'index':0x6064, 'sub-index':0x00, 'type':"DINT", 'direction':"I"},
-                      {'name':"ActualVelocity"   , 'index':0x606c, 'sub-index':0x00, 'type':"DINT", 'direction':"I"},
-                      {'name':"ActualTorque"     , 'index':0x6077, 'sub-index':0x00, 'type':"INT",  'direction':"I"})
-
-DEFAULT_RETRIEVE = "    __CIA402Node_%(location)s.axis->%(name)s = *(__CIA402Node_%(location)s.%(name)s);"
-DEFAULT_PUBLISH = "    *(__CIA402Node_%(location)s.%(name)s) = __CIA402Node_%(location)s.axis->%(name)s;"
 
 # Definition of optional node variables that can be added to PDO mapping.
 # A checkbox will be displayed for each section in node configuration panel to
 # enable them
-# [(section_name, 
-#   [{'description', (name, index, subindex, type, 
+# [(section_name,
+#   [{'description', (name, index, subindex, type,
 #                     direction for master ('I': input, 'Q': output)),
-#     'retrieve', string_template_for_retrieve_variable (None: not retrieved, 
+#     'retrieve', string_template_for_retrieve_variable (None: not retrieved,
 #                                 default string template if not defined),
-#     'publish', string_template_for_publish_variable (None: not published, 
+#     'publish', string_template_for_publish_variable (None: not published,
 #                                 default string template if not defined),
 #    },...]
-
 EXTRA_NODE_VARIABLES = [
     ("ErrorCode", [
         {"description": ("ErrorCode", 0x603F, 0x00, "UINT", "I"),
@@ -64,8 +57,8 @@ EXTRA_NODE_VARIABLES = [
          "publish": None}
         ]),
     ("DigitalOutputs", [
-        {"description": ("DigitalOutputs", 0x60FE, 0x01, "UDINT", "I"),
-         "publish": None}
+        {"description": ("DigitalOutputs", 0x60FE, 0x00, "UDINT", "Q"),
+         "retrieve": None}
         ]),
     ("TouchProbe", [
         {"description": ("TouchProbeFunction", 0x60B8, 0x00, "UINT", "Q"),
@@ -82,78 +75,25 @@ EXTRA_NODE_VARIABLES = [
 # List of parameters name in no configuration panel for optional variable
 # sections
 EXTRA_NODE_VARIABLES_DICT = {
-    "Enable" + name: params 
+    "Enable" + name: params
     for name, params in EXTRA_NODE_VARIABLES}
 
-BLOCK_INPUT_TEMPLATE = "    __SET_VAR(%(blockname)s->,%(input_name)s, %(input_value)s);"
-BLOCK_OUTPUT_TEMPLATE = "    __SET_VAR(data__->,%(output_name)s, __GET_VAR(%(blockname)s->%(output_name)s));"
-
-BLOCK_FUNCTION_TEMPLATE = """
-extern void ETHERLAB%(ucase_blocktype)s_body__(ETHERLAB%(ucase_blocktype)s* data__);
-void __%(blocktype)s_%(location)s(MC_%(ucase_blocktype)s *data__) {
-__DECLARE_GLOBAL_PROTOTYPE(ETHERLAB%(ucase_blocktype)s, %(blockname)s);
-ETHERLAB%(ucase_blocktype)s* %(blockname)s = __GET_GLOBAL_%(blockname)s();
-__SET_VAR(%(blockname)s->, POS, AxsPub.axis->NetworkPosition);
-%(extract_inputs)s
-ETHERLAB%(ucase_blocktype)s_body__(%(blockname)s);
-%(return_outputs)s
-}
-"""
-
-BLOCK_FUNTION_DEFINITION_TEMPLATE = "        __CIA402Node_%(location)s.axis->__mcl_func_MC_%(blocktype)s = __%(blocktype)s_%(location)s;"
-
+# List of block to define to interface MCL to fieldbus for specific functions
 FIELDBUS_INTERFACE_GLOBAL_INSTANCES = [
-    {"blocktype": "GetTorqueLimit", 
+    {"blocktype": "GetTorqueLimit",
      "inputs": [],
      "outputs": [{"name": "TorqueLimitPos", "type": "UINT"},
                  {"name": "TorqueLimitNeg", "type": "UINT"}]},
-    {"blocktype": "SetTorqueLimit", 
+    {"blocktype": "SetTorqueLimit",
      "inputs": [{"name": "TorqueLimitPos", "type": "UINT"},
                 {"name": "TorqueLimitNeg", "type": "UINT"}],
      "outputs": []},
 ]
 
-# add jblee
-MODEOFOP_HOMING_METHOD_TEMPLATE = """
-	if(*(AxsPub.ModesOfOperation) == 0x06){
-		IEC_BOOL homing = AxsPub.axis->HomingOperationStart;
-		if(power){
-			if (homing)
-				CW |= Homing_OperationStart_Origin;
-			else
-				CW &= ~(Homing_OperationStart_Origin);
-		}
-		else{
-			if (homing)
-				CW |= Homing_OperationStart_Edit;
-			else
-				CW &= ~(EnableOperation);
-		}
-
-	}
-"""
-
-MODEOFOP_COMPUTATION_MODE_TEMPLATE = """
-	switch (AxsPub.axis->AxisMotionMode) {
-		//ssh_add
-		case mc_mode_hm:
-			*(AxsPub.ModesOfOperation) = 0x06;
-			break;
-		case mc_mode_cst:
-			*(AxsPub.ModesOfOperation) = 0x0a;
-			break;
-		case mc_mode_csv:
-			*(AxsPub.ModesOfOperation) = 0x09;
-			break;
-		default:
-			*(AxsPub.ModesOfOperation) = 0x08;
-			break;
-	}
-"""
-
-#--------------------------------------------------
+# --------------------------------------------------
 #                 Ethercat CIA402 Node
-#--------------------------------------------------
+# --------------------------------------------------
+
 
 class _EthercatCIA402SlaveCTN(_EthercatSlaveCTN):
     XSD = """<?xml version="1.0" encoding="ISO-8859-1" ?>
@@ -166,94 +106,99 @@ class _EthercatCIA402SlaveCTN(_EthercatSlaveCTN):
     </xsd:schema>
     """ % ("\n".join(["""\
           <xsd:attribute name="Enable%s" type="xsd:boolean"
-                         use="optional" default="false"/>""" % category 
-                for category, variables in EXTRA_NODE_VARIABLES]) + AxisXSD)
-    
+                         use="optional" default="false"/>""" % category
+                      for category, variables in EXTRA_NODE_VARIABLES]) + AxisXSD)
+
     NODE_PROFILE = 402
     EditorType = CIA402NodeEditor
-    
+
     ConfNodeMethods = [
-        {"bitmap" : "CIA402AxisRef",
-         "name" : _("Axis Ref"),
-         "tooltip" : _("Initiate Drag'n drop of Axis ref located variable"),
-         "method" : "_getCIA402AxisRef",
-         "push": True},
-        {"bitmap" : "CIA402NetPos",
-         "name" : _("Axis Pos"),
-         "tooltip" : _("Initiate Drag'n drop of Network position located variable"),
-         "method" : "_getCIA402NetworkPosition",
-         "push": True},
+        {
+            "bitmap": "CIA402AxisRef",
+            "name": _("Axis Ref"),
+            "tooltip": _("Initiate Drag'n drop of Axis ref located variable"),
+            "method": "_getCIA402AxisRef",
+            "push": True,
+        },
+        {
+            "bitmap": "CIA402NetPos",
+            "name": _("Axis Pos"),
+            "tooltip": _("Initiate Drag'n drop of Network position located variable"),
+            "method": "_getCIA402NetworkPosition",
+            "push": True,
+        },
     ]
-    
-#--------------------------------------------------
+
+# --------------------------------------------------
 #    class code
-#--------------------------------------------------    
-    
+# --------------------------------------------------
+
     def __init__(self):
+        _EthercatSlaveCTN.__init__(self)
+
         # ----------- call ethercat mng. function --------------
         self.CommonMethod = _CommonSlave(self)
-    
-        #HSAHN
-        # Select PDO Mapping
-        self.SelectedPDOIndex = []
-        self.SelectedRxPDOIndex = []
-        self.SelectedTxPDOIndex = []
-        #HSAHN END
 
     def GetIconName(self):
         return "CIA402Slave"
-    
+
     def SetParamsAttribute(self, path, value):
         if path == "CIA402SlaveParams.Type":
             path = "SlaveParams.Type"
         elif path == "CIA402SlaveParams.Alias":
             path = "SlaveParams.Alias"
         return _EthercatSlaveCTN.SetParamsAttribute(self, path, value)
-    
+
     def GetVariableLocationTree(self):
         axis_name = self.CTNName()
         current_location = self.GetCurrentLocation()
-        children = [{"name": name_frmt % (axis_name),
-                     "type": LOCATION_VAR_INPUT,
-                     "size": "W",
-                     "IEC_type": iec_type,
-                     "var_name": var_name_frmt % axis_name,
-                     "location": location_frmt % (
-                            ".".join(map(str, current_location))),
-                     "description": "",
-                     "children": []}
-                    for name_frmt, iec_type, var_name_frmt, location_frmt in
-                        [("%s Network Position", "UINT", "%s_pos", "%%IW%s"),
-                         ("%s Axis Ref", "AXIS_REF", "%s", "%%IW%s.402")]]
-        children.extend(self.CTNParent.GetDeviceLocationTree(
-                            self.GetSlavePos(), current_location, axis_name))
-        return  {"name": axis_name,
-                 "type": LOCATION_CONFNODE,
-                 "location": self.GetFullIEC_Channel(),
-                 "children": children,
+        children = [
+            {
+                "name": name_frmt % (axis_name),
+                "type": LOCATION_VAR_INPUT,
+                "size": "W",
+                "IEC_type": iec_type,
+                "var_name": var_name_frmt % axis_name,
+                "location": location_frmt % (".".join(map(str, current_location))),
+                "description": "",
+                "children": []
+            }
+            for name_frmt, iec_type, var_name_frmt, location_frmt in [
+                ("%s Network Position", "UINT", "%s_pos", "%%IW%s"),
+                ("%s Axis Ref", "AXIS_REF", "%s", "%%IW%s.402")
+            ]
+        ]
+        children.extend(self.CTNParent.GetDeviceLocationTree(self.GetSlavePos(),
+                                                             current_location,
+                                                             axis_name))
+        return {
+            "name": axis_name,
+            "type": LOCATION_CONFNODE,
+            "location": self.GetFullIEC_Channel(),
+            "children": children,
         }
-    
+
     def CTNGlobalInstances(self):
         current_location = self.GetCurrentLocation()
-        return [("%s_%s" % (block_infos["blocktype"], 
+        return [("%s_%s" % (block_infos["blocktype"],
                             "_".join(map(str, current_location))),
-                 "EtherLab%s" % block_infos["blocktype"], "") 
+                 "EtherLab%s" % block_infos["blocktype"], "")
                 for block_infos in FIELDBUS_INTERFACE_GLOBAL_INSTANCES]
-    
+
     def StartDragNDrop(self, data):
         data_obj = wx.TextDataObject(str(data))
         dragSource = wx.DropSource(self.GetCTRoot().AppFrame)
         dragSource.SetData(data_obj)
         dragSource.DoDragDrop()
-    
+
     def _getCIA402NetworkPosition(self):
         self.StartDragNDrop(
-            ("%%IW%s" % ".".join(map(str, self.GetCurrentLocation())), 
+            ("%%IW%s" % ".".join(map(str, self.GetCurrentLocation())),
              "location", "UINT", self.CTNName() + "_Pos", ""))
-        
+
     def _getCIA402AxisRef(self):
         self.StartDragNDrop(
-            ("%%IW%s.402" % ".".join(map(str, self.GetCurrentLocation())), 
+            ("%%IW%s.402" % ".".join(map(str, self.GetCurrentLocation())),
              "location", "AXIS_REF", self.CTNName(), ""))
 
     # add jblee
@@ -317,10 +262,12 @@ class _EthercatCIA402SlaveCTN(_EthercatSlaveCTN):
         
     def CTNGenerate_C(self, buildpath, locations):
         current_location = self.GetCurrentLocation()
-        
-        location_str = "_".join(map(lambda x:str(x), current_location))
-        
-        plc_cia402node_filepath = os.path.join(os.path.split(__file__)[0], "plc_cia402node.c")
+
+        location_str = "_".join(map(str, current_location))
+
+        # Open CIA402 node code template file
+        plc_cia402node_filepath = os.path.join(os.path.split(__file__)[0],
+                                               "plc_cia402node.c")
         plc_cia402node_file = open(plc_cia402node_filepath, 'r')
         plc_cia402node_code = plc_cia402node_file.read()
         plc_cia402node_file.close()
@@ -523,6 +470,5 @@ class _EthercatCIA402SlaveCTN(_EthercatSlaveCTN):
         cia402nodefile = open(Gen_CIA402Nodefile_path, 'w')
         cia402nodefile.write(plc_cia402node_code % str_completion)
         cia402nodefile.close()
-        
-        return [(Gen_CIA402Nodefile_path, '"-I%s"'%os.path.abspath(self.GetCTRoot().GetIECLibPath()))],"",True
-    
+
+        return [(Gen_CIA402Nodefile_path, '"-I%s"' % os.path.abspath(self.GetCTRoot().GetIECLibPath()))], "", True

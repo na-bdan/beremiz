@@ -24,12 +24,16 @@
 
 
 from __future__ import absolute_import
+from __future__ import division
 import re
-from types import TupleType, StringType, UnicodeType
+from builtins import str as text
 
 import wx
 import wx.grid
 import wx.lib.buttons
+from six import string_types
+from six.moves import xrange
+
 
 from plcopen.structures import LOCATIONDATATYPES, TestIdentifier, IEC_KEYWORDS, DefaultType
 from plcopen.VariableInfoCollector import _VariableInfos
@@ -80,9 +84,6 @@ def GetOptions(constant=True, retain=True, non_retain=True):
     return options
 
 
-OPTIONS_DICT = dict([(_(option), option) for option in GetOptions()])
-
-
 def GetFilterChoiceTransfer():
     _ = NoTranslate
     return {_("All"): _("All"), _("Interface"): _("Interface"),
@@ -90,9 +91,6 @@ def GetFilterChoiceTransfer():
             _("   External"): _("External"), _("Variables"): _("Variables"), _("   Local"): _("Local"),
             _("   Temp"): _("Temp"), _("Global"): _("Global")}  # , _("Access") : _("Access")}
 
-
-VARIABLE_CHOICES_DICT = dict([(_(_class), _class) for _class in GetFilterChoiceTransfer().iterkeys()])
-VARIABLE_CLASSES_DICT = dict([(_(_class), _class) for _class in GetFilterChoiceTransfer().itervalues()])
 
 CheckOptionForClass = {
     "Local": lambda x: x,
@@ -104,7 +102,8 @@ CheckOptionForClass = {
     "External": lambda x: {"Constant": "Constant"}.get(x, "")
 }
 
-LOCATION_MODEL = re.compile("((?:%[IQM](?:\*|(?:[XBWLD]?[0-9]+(?:\.[0-9]+)*)))?)$")
+LOCATION_MODEL = re.compile(r"((?:%[IQM](?:\*|(?:[XBWLD]?[0-9]+(?:\.[0-9]+)*)))?)$")
+LOCATION_MODEL_SET = re.compile(r"((?:%[IQM](?:[XBWLD]?[0-9]+(?:\.[0-9]+)*))?)$")
 
 
 # -------------------------------------------------------------------------------
@@ -121,6 +120,10 @@ class VariableTable(CustomTable):
         # The base class must be initialized *first*
         CustomTable.__init__(self, parent, data, colnames)
         self.old_value = None
+        self.OPTIONS_DICT = dict([(_(option), option)
+                                  for option in GetOptions()])
+        self.VARIABLE_CLASSES_DICT = dict([(_(_class), _class)
+                                           for _class in GetFilterChoiceTransfer().itervalues()])
 
     def GetValueByName(self, row, colname):
         if row < self.GetNumberRows():
@@ -138,10 +141,10 @@ class VariableTable(CustomTable):
             if colname == "Initial Value":
                 colname = "InitialValue"
             value = getattr(self.data[row], colname, "")
-            if colname == "Type" and isinstance(value, TupleType):
+            if colname == "Type" and isinstance(value, tuple):
                 if value[0] == "array":
                     return "ARRAY [%s] OF %s" % (",".join(map("..".join, value[2])), value[1])
-            if not isinstance(value, (StringType, UnicodeType)):
+            if not isinstance(value, string_types):
                 value = str(value)
             if colname in ["Class", "Option"]:
                 return _(value)
@@ -153,12 +156,12 @@ class VariableTable(CustomTable):
             if colname == "Name":
                 self.old_value = getattr(self.data[row], colname)
             elif colname == "Class":
-                value = VARIABLE_CLASSES_DICT[value]
+                value = self.VARIABLE_CLASSES_DICT[value]
                 self.SetValueByName(row, "Option", CheckOptionForClass[value](self.GetValueByName(row, "Option")))
                 if value == "External":
                     self.SetValueByName(row, "InitialValue", "")
             elif colname == "Option":
-                value = OPTIONS_DICT[value]
+                value = self.OPTIONS_DICT[value]
             elif colname == "Initial Value":
                 colname = "InitialValue"
             setattr(self.data[row], colname, value)
@@ -278,7 +281,7 @@ class VariableDropTarget(wx.TextDropTarget):
         except Exception:
             message = _("Invalid value \"%s\" for variable grid element") % data
             values = None
-        if not isinstance(values, TupleType):
+        if not isinstance(values, tuple):
             message = _("Invalid value \"%s\" for variable grid element") % data
             values = None
         if values is not None:
@@ -443,6 +446,9 @@ class VariablePanel(wx.Panel):
     def __init__(self, parent, window, controler, element_type, debug=False):
         wx.Panel.__init__(self, parent, style=wx.TAB_TRAVERSAL)
 
+        self.VARIABLE_CHOICES_DICT = dict([(_(_class), _class) for
+                                           _class in GetFilterChoiceTransfer().iterkeys()])
+
         self.MainSizer = wx.FlexGridSizer(cols=1, hgap=10, rows=2, vgap=0)
         self.MainSizer.AddGrowableCol(0)
         self.MainSizer.AddGrowableRow(1)
@@ -597,6 +603,15 @@ class VariablePanel(wx.Panel):
                 old_name = self.Values[new_row-1].Name
                 row_content.Name = self.Controler.GenerateNewName(
                     self.TagName, old_name, old_name+'%d')
+
+                # increment location address
+                if row_content.Location != "" and LOCATION_MODEL_SET.match(row_content.Location):
+                    old_location = row_content.Location
+                    model = re.compile(r"%[IQM][XBWLD]?(.*\.|)")
+                    prefix = model.match(old_location).group(0)
+                    addr = int(re.split(model, old_location)[-1]) + 1
+                    row_content.Location = prefix + text(addr)
+
             if not row_content.Class:
                 row_content.Class = self.DefaultTypes.get(self.Filter, self.Filter)
 
@@ -671,7 +686,7 @@ class VariablePanel(wx.Panel):
             self.VariablesGrid.SetColAttr(col, attr)
             self.VariablesGrid.SetColMinimalWidth(col, self.ColSettings["size"][col])
             if (panel_width > self.PanelWidthMin) and not self.ColSettings["fixed_size"][col]:
-                self.VariablesGrid.SetColSize(col, int((float(self.ColSettings["size"][col])/stretch_cols_sum)*stretch_cols_width))
+                self.VariablesGrid.SetColSize(col, int((self.ColSettings["size"][col]/stretch_cols_sum)*stretch_cols_width))
             else:
                 self.VariablesGrid.SetColSize(col, self.ColSettings["size"][col])
 
@@ -686,7 +701,7 @@ class VariablePanel(wx.Panel):
         return self.TagName
 
     def IsFunctionBlockType(self, name):
-        if isinstance(name, TupleType) or \
+        if isinstance(name, tuple) or \
            self.ElementType != "function" and self.BodyType in ["ST", "IL"]:
             return False
         else:
@@ -753,7 +768,7 @@ class VariablePanel(wx.Panel):
         event.Skip()
 
     def OnClassFilter(self, event):
-        self.Filter = self.FilterChoiceTransfer[VARIABLE_CHOICES_DICT[self.ClassFilter.GetStringSelection()]]
+        self.Filter = self.FilterChoiceTransfer[self.VARIABLE_CHOICES_DICT[self.ClassFilter.GetStringSelection()]]
         self.RefreshTypeList()
         self.RefreshValues()
         self.VariablesGrid.RefreshButtons()
@@ -774,6 +789,27 @@ class VariablePanel(wx.Panel):
         dialog.ShowModal()
         dialog.Destroy()
 
+    def OnVariableNameChange(self, old_name, new_name):
+        """ propagate renaming of variable to the rest of the project """
+        if old_name != "":
+            self.Controler.UpdateEditedElementUsedVariable(self.TagName, old_name, new_name)
+        self.Controler.BufferProject()
+        wx.CallAfter(self.ParentWindow.RefreshView, False)
+        self.ParentWindow._Refresh(TITLE, FILEMENU, EDITMENU, PAGETITLES, POUINSTANCEVARIABLESPANEL, LIBRARYTREE)
+
+    def CheckVariableName(self, value, row):
+        if not TestIdentifier(value):
+            message = _("\"%s\" is not a valid identifier!") % value
+        elif value.upper() in IEC_KEYWORDS:
+            message = _("\"%s\" is a keyword. It can't be used!") % value
+        elif value.upper() in self.PouNames:
+            message = _("A POU named \"%s\" already exists!") % value
+        elif value.upper() in [var.Name.upper() for var in self.Values if var != self.Table.data[row]]:
+            message = _("A variable with \"%s\" as name already exists in this pou!") % value
+        else:
+            return None
+        return message
+
     def OnVariablesGridCellChange(self, event):
         row, col = event.GetRow(), event.GetCol()
         colname = self.Table.GetColLabelValue(col, False)
@@ -781,22 +817,11 @@ class VariablePanel(wx.Panel):
         message = None
 
         if colname == "Name" and value != "":
-            if not TestIdentifier(value):
-                message = _("\"%s\" is not a valid identifier!") % value
-            elif value.upper() in IEC_KEYWORDS:
-                message = _("\"%s\" is a keyword. It can't be used!") % value
-            elif value.upper() in self.PouNames:
-                message = _("A POU named \"%s\" already exists!") % value
-            elif value.upper() in [var.Name.upper() for var in self.Values if var != self.Table.data[row]]:
-                message = _("A variable with \"%s\" as name already exists in this pou!") % value
-            else:
+            message = self.CheckVariableName(value, row)
+            if message is None:
                 self.SaveValues(False)
                 old_value = self.Table.GetOldValue()
-                if old_value != "":
-                    self.Controler.UpdateEditedElementUsedVariable(self.TagName, old_value, value)
-                self.Controler.BufferProject()
-                wx.CallAfter(self.ParentWindow.RefreshView, False)
-                self.ParentWindow._Refresh(TITLE, FILEMENU, EDITMENU, PAGETITLES, POUINSTANCEVARIABLESPANEL, LIBRARYTREE)
+                self.OnVariableNameChange(old_value, value)
         else:
             self.SaveValues()
             if colname == "Class":
@@ -823,22 +848,20 @@ class VariablePanel(wx.Panel):
         # build a submenu containing standard IEC types
         base_menu = wx.Menu(title='')
         for base_type in self.Controler.GetBaseTypes():
-            new_id = wx.NewId()
-            base_menu.Append(help='', id=new_id, kind=wx.ITEM_NORMAL, text=base_type)
-            self.Bind(wx.EVT_MENU, self.GetVariableTypeFunction(base_type), id=new_id)
+            item = base_menu.Append(wx.ID_ANY, help='', kind=wx.ITEM_NORMAL, text=base_type)
+            self.Bind(wx.EVT_MENU, self.GetVariableTypeFunction(base_type), item)
 
-        type_menu.AppendMenu(wx.NewId(), _("Base Types"), base_menu)
+        type_menu.AppendMenu(wx.ID_ANY, _("Base Types"), base_menu)
 
     def BuildUserTypesMenu(self, type_menu):
         # build a submenu containing user-defined types
         datatype_menu = wx.Menu(title='')
         datatypes = self.Controler.GetDataTypes(basetypes=False, confnodetypes=False)
         for datatype in datatypes:
-            new_id = wx.NewId()
-            datatype_menu.Append(help='', id=new_id, kind=wx.ITEM_NORMAL, text=datatype)
-            self.Bind(wx.EVT_MENU, self.GetVariableTypeFunction(datatype), id=new_id)
+            item = datatype_menu.Append(wx.ID_ANY, help='', kind=wx.ITEM_NORMAL, text=datatype)
+            self.Bind(wx.EVT_MENU, self.GetVariableTypeFunction(datatype), item)
 
-        type_menu.AppendMenu(wx.NewId(), _("User Data Types"), datatype_menu)
+        type_menu.AppendMenu(wx.ID_ANY, _("User Data Types"), datatype_menu)
 
     def BuildLibsTypesMenu(self, type_menu):
         for category in self.Controler.GetConfNodeDataTypes():
@@ -846,11 +869,10 @@ class VariablePanel(wx.Panel):
                 # build a submenu containing confnode types
                 confnode_datatype_menu = wx.Menu(title='')
                 for datatype in category["list"]:
-                    new_id = wx.NewId()
-                    confnode_datatype_menu.Append(help='', id=new_id, kind=wx.ITEM_NORMAL, text=datatype)
-                    self.Bind(wx.EVT_MENU, self.GetVariableTypeFunction(datatype), id=new_id)
+                    item = confnode_datatype_menu.Append(wx.ID_ANY, help='', kind=wx.ITEM_NORMAL, text=datatype)
+                    self.Bind(wx.EVT_MENU, self.GetVariableTypeFunction(datatype), item)
 
-                type_menu.AppendMenu(wx.NewId(), category["name"], confnode_datatype_menu)
+                type_menu.AppendMenu(wx.ID_ANY, category["name"], confnode_datatype_menu)
 
     def BuildProjectTypesMenu(self, type_menu, classtype):
         # build a submenu containing function block types
@@ -861,16 +883,14 @@ class VariablePanel(wx.Panel):
             functionblock_menu = wx.Menu(title='')
             fbtypes = self.Controler.GetFunctionBlockTypes(self.TagName)
             for functionblock_type in fbtypes:
-                new_id = wx.NewId()
-                functionblock_menu.Append(help='', id=new_id, kind=wx.ITEM_NORMAL, text=functionblock_type)
-                self.Bind(wx.EVT_MENU, self.GetVariableTypeFunction(functionblock_type), id=new_id)
+                item = functionblock_menu.Append(wx.ID_ANY, help='', kind=wx.ITEM_NORMAL, text=functionblock_type)
+                self.Bind(wx.EVT_MENU, self.GetVariableTypeFunction(functionblock_type), item)
 
-            type_menu.AppendMenu(wx.NewId(), _("Function Block Types"), functionblock_menu)
+            type_menu.AppendMenu(wx.ID_ANY, _("Function Block Types"), functionblock_menu)
 
     def BuildArrayTypesMenu(self, type_menu):
-        new_id = wx.NewId()
-        type_menu.Append(help='', id=new_id, kind=wx.ITEM_NORMAL, text=_("Array"))
-        self.Bind(wx.EVT_MENU, self.VariableArrayTypeFunction, id=new_id)
+        item = type_menu.Append(wx.ID_ANY, help='', kind=wx.ITEM_NORMAL, text=_("Array"))
+        self.Bind(wx.EVT_MENU, self.VariableArrayTypeFunction, item)
 
     def OnVariablesGridEditorShown(self, event):
         row, col = event.GetRow(), event.GetCol()
@@ -974,7 +994,7 @@ class VariablePanel(wx.Panel):
         event.Skip()
 
     def AddVariableHighlight(self, infos, highlight_type):
-        if isinstance(infos[0], TupleType):
+        if isinstance(infos[0], tuple):
             for i in xrange(*infos[0]):
                 self.Table.AddHighlight((i,) + infos[1:], highlight_type)
             cell_visible = infos[0][0]
@@ -986,7 +1006,7 @@ class VariablePanel(wx.Panel):
         self.RefreshHighlightsTimer.Start(int(REFRESH_HIGHLIGHT_PERIOD * 1000), oneShot=True)
 
     def RemoveVariableHighlight(self, infos, highlight_type):
-        if isinstance(infos[0], TupleType):
+        if isinstance(infos[0], tuple):
             for i in xrange(*infos[0]):
                 self.Table.RemoveHighlight((i,) + infos[1:], highlight_type)
         else:

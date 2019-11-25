@@ -27,7 +27,9 @@ from __future__ import absolute_import
 from __future__ import print_function
 import sys
 import traceback
+from functools import partial
 from threading import Thread, Event
+from six import text_type as text
 
 from twisted.internet import reactor, threads
 from autobahn.twisted import wamp
@@ -36,6 +38,7 @@ from autobahn.wamp import types
 from autobahn.wamp.exception import TransportLost
 from autobahn.wamp.serializer import MsgPackSerializer
 
+from runtime import PlcStatus
 
 _WampSession = None
 _WampConnection = None
@@ -59,20 +62,20 @@ class WampSession(wamp.ApplicationSession):
 PLCObjDefaults = {
     "StartPLC":          False,
     "GetTraceVariables": ("Broken", None),
-    "GetPLCstatus":      ("Broken", None),
+    "GetPLCstatus":      (PlcStatus.Broken, None),
     "RemoteExec":        (-1, "RemoteExec script failed!")
 }
 
 
-def WAMP_connector_factory(uri, confnodesroot):
+def _WAMP_connector_factory(cls, uri, confnodesroot):
     """
     WAMP://127.0.0.1:12345/path#realm#ID
     WAMPS://127.0.0.1:12345/path#realm#ID
     """
-    servicetype, location = uri.split("://")
+    scheme, location = uri.split("://")
     urlpath, realm, ID = location.split('#')
     urlprefix = {"WAMP":  "ws",
-                 "WAMPS": "wss"}[servicetype]
+                 "WAMPS": "wss"}[scheme]
     url = urlprefix+"://"+urlpath
 
     def RegisterWampClient():
@@ -82,11 +85,11 @@ def WAMP_connector_factory(uri, confnodesroot):
 
         # create a WAMP application session factory
         component_config = types.ComponentConfig(
-            realm=unicode(realm),
+            realm=text(realm),
             extra={"ID": ID})
         session_factory = wamp.ApplicationSessionFactory(
             config=component_config)
-        session_factory.session = WampSession
+        session_factory.session = cls
 
         # create a WAMP-over-WebSocket transport client factory
         transport_factory = WampWebSocketClientFactory(
@@ -108,7 +111,7 @@ def WAMP_connector_factory(uri, confnodesroot):
         reactor.run(installSignalHandlers=False)
 
     def WampSessionProcMapper(funcname):
-        wampfuncname = unicode('.'.join((ID, funcname)))
+        wampfuncname = text('.'.join((ID, funcname)))
 
         def catcher_func(*args, **kwargs):
             if _WampSession is not None:
@@ -151,10 +154,10 @@ def WAMP_connector_factory(uri, confnodesroot):
                 self.__dict__[attrName] = member
             return member
 
-    # Try to get the proxy object
-    try:
-        return WampPLCObjectProxy()
-    except Exception:
-        confnodesroot.logger.write_error(_("WAMP connection to '%s' failed.\n") % location)
-        confnodesroot.logger.write_error(traceback.format_exc())
-        return None
+    # TODO : GetPLCID()
+    # TODO : PSK.UpdateID()
+
+    return WampPLCObjectProxy
+
+
+WAMP_connector_factory = partial(_WAMP_connector_factory, WampSession)

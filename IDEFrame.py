@@ -23,14 +23,17 @@
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 
 from __future__ import absolute_import
+from __future__ import division
 import sys
-import cPickle
-from types import TupleType
 import base64
+from future.builtins import \
+    round, \
+    str as text
 
 import wx
 import wx.grid
 import wx.aui
+from six.moves import cPickle, xrange
 
 from editors.EditorPanel import EditorPanel
 from editors.SFCViewer import SFC_Viewer
@@ -72,7 +75,8 @@ from plcopen.types_enums import *
 [
     ID_PLCOPENEDITORDISPLAYMENURESETPERSPECTIVE,
     ID_PLCOPENEDITORDISPLAYMENUSWITCHPERSPECTIVE,
-] = [wx.NewId() for _init_coll_DisplayMenu_Items in range(2)]
+    ID_PLCOPENEDITORDISPLAYMENUFULLSCREEN,
+] = [wx.NewId() for _init_coll_DisplayMenu_Items in range(3)]
 
 # -------------------------------------------------------------------------------
 #                            EditorToolBar definitions
@@ -92,106 +96,6 @@ from plcopen.types_enums import *
 ] = [wx.NewId() for _init_coll_DefaultEditorToolBar_Items in range(18)]
 
 
-# Define behaviour of each Toolbar item according to current POU body type
-# Informations meaning are in this order:
-#  - Item is toggled
-#  - PLCOpenEditor mode where item is displayed (could be more then one)
-#  - Item id
-#  - Item callback function name
-#  - Item icon filename
-#  - Item tooltip text
-EditorToolBarItems = {
-    "FBD":   [(True, FREEDRAWING_MODE | DRIVENDRAWING_MODE,
-               ID_PLCOPENEDITOREDITORTOOLBARMOTION, "OnMotionTool",
-               "move", _("Move the view")),
-              (True, FREEDRAWING_MODE | DRIVENDRAWING_MODE,
-               ID_PLCOPENEDITOREDITORTOOLBARCOMMENT, "OnCommentTool",
-               "add_comment", _("Create a new comment")),
-              (True, FREEDRAWING_MODE | DRIVENDRAWING_MODE,
-               ID_PLCOPENEDITOREDITORTOOLBARVARIABLE, "OnVariableTool",
-               "add_variable", _("Create a new variable")),
-              (True, FREEDRAWING_MODE | DRIVENDRAWING_MODE,
-               ID_PLCOPENEDITOREDITORTOOLBARBLOCK, "OnBlockTool",
-               "add_block", _("Create a new block")),
-              (True, FREEDRAWING_MODE | DRIVENDRAWING_MODE,
-               ID_PLCOPENEDITOREDITORTOOLBARCONNECTION, "OnConnectionTool",
-               "add_connection", _("Create a new connection"))],
-    "LD":    [(True, FREEDRAWING_MODE | DRIVENDRAWING_MODE,
-               ID_PLCOPENEDITOREDITORTOOLBARMOTION, "OnMotionTool",
-               "move", _("Move the view")),
-              (True, FREEDRAWING_MODE,
-               ID_PLCOPENEDITOREDITORTOOLBARCOMMENT, "OnCommentTool",
-               "add_comment", _("Create a new comment")),
-              (True, FREEDRAWING_MODE,
-               ID_PLCOPENEDITOREDITORTOOLBARPOWERRAIL, "OnPowerRailTool",
-               "add_powerrail", _("Create a new power rail")),
-              (False, DRIVENDRAWING_MODE,
-               ID_PLCOPENEDITOREDITORTOOLBARRUNG, "OnRungTool",
-               "add_rung", _("Create a new rung")),
-              (True, FREEDRAWING_MODE,
-               ID_PLCOPENEDITOREDITORTOOLBARCOIL, "OnCoilTool",
-               "add_coil", _("Create a new coil")),
-              (False, FREEDRAWING_MODE | DRIVENDRAWING_MODE,
-               ID_PLCOPENEDITOREDITORTOOLBARCONTACT, "OnContactTool",
-               "add_contact", _("Create a new contact")),
-              (False, DRIVENDRAWING_MODE,
-               ID_PLCOPENEDITOREDITORTOOLBARBRANCH, "OnBranchTool",
-               "add_branch", _("Create a new branch")),
-              (True, FREEDRAWING_MODE,
-               ID_PLCOPENEDITOREDITORTOOLBARVARIABLE, "OnVariableTool",
-               "add_variable", _("Create a new variable")),
-              (False, FREEDRAWING_MODE | DRIVENDRAWING_MODE,
-               ID_PLCOPENEDITOREDITORTOOLBARBLOCK, "OnBlockTool",
-               "add_block", _("Create a new block")),
-              (True, FREEDRAWING_MODE,
-               ID_PLCOPENEDITOREDITORTOOLBARCONNECTION, "OnConnectionTool",
-               "add_connection", _("Create a new connection"))],
-    "SFC":   [(True, FREEDRAWING_MODE | DRIVENDRAWING_MODE,
-               ID_PLCOPENEDITOREDITORTOOLBARMOTION, "OnMotionTool",
-               "move", _("Move the view")),
-              (True, FREEDRAWING_MODE | DRIVENDRAWING_MODE,
-               ID_PLCOPENEDITOREDITORTOOLBARCOMMENT, "OnCommentTool",
-               "add_comment", _("Create a new comment")),
-              (True, FREEDRAWING_MODE | DRIVENDRAWING_MODE,
-               ID_PLCOPENEDITOREDITORTOOLBARINITIALSTEP, "OnInitialStepTool",
-               "add_initial_step", _("Create a new initial step")),
-              (False, FREEDRAWING_MODE | DRIVENDRAWING_MODE,
-               ID_PLCOPENEDITOREDITORTOOLBARSTEP, "OnStepTool",
-               "add_step", _("Create a new step")),
-              (True, FREEDRAWING_MODE,
-               ID_PLCOPENEDITOREDITORTOOLBARTRANSITION, "OnTransitionTool",
-               "add_transition", _("Create a new transition")),
-              (False, FREEDRAWING_MODE | DRIVENDRAWING_MODE,
-               ID_PLCOPENEDITOREDITORTOOLBARACTIONBLOCK, "OnActionBlockTool",
-               "add_action", _("Create a new action block")),
-              (False, FREEDRAWING_MODE | DRIVENDRAWING_MODE,
-               ID_PLCOPENEDITOREDITORTOOLBARDIVERGENCE, "OnDivergenceTool",
-               "add_divergence", _("Create a new divergence")),
-              (False, FREEDRAWING_MODE | DRIVENDRAWING_MODE,
-               ID_PLCOPENEDITOREDITORTOOLBARJUMP, "OnJumpTool",
-               "add_jump", _("Create a new jump")),
-              (True, FREEDRAWING_MODE,
-               ID_PLCOPENEDITOREDITORTOOLBARVARIABLE, "OnVariableTool",
-               "add_variable", _("Create a new variable")),
-              (True, FREEDRAWING_MODE,
-               ID_PLCOPENEDITOREDITORTOOLBARBLOCK, "OnBlockTool",
-               "add_block", _("Create a new block")),
-              (True, FREEDRAWING_MODE,
-               ID_PLCOPENEDITOREDITORTOOLBARCONNECTION, "OnConnectionTool",
-               "add_connection", _("Create a new connection")),
-              (True, FREEDRAWING_MODE,
-               ID_PLCOPENEDITOREDITORTOOLBARPOWERRAIL, "OnPowerRailTool",
-               "add_powerrail", _("Create a new power rail")),
-              (True, FREEDRAWING_MODE,
-               ID_PLCOPENEDITOREDITORTOOLBARCONTACT, "OnContactTool",
-               "add_contact", _("Create a new contact"))],
-    "ST":    [],
-    "IL":    [],
-    "debug": [(True, FREEDRAWING_MODE | DRIVENDRAWING_MODE,
-               ID_PLCOPENEDITOREDITORTOOLBARMOTION, "OnMotionTool",
-               "move", _("Move the view"))],
-}
-
 # -------------------------------------------------------------------------------
 #                               Helper Functions
 # -------------------------------------------------------------------------------
@@ -207,7 +111,7 @@ def EncodeFileSystemPath(path, use_base64=True):
 def DecodeFileSystemPath(path, is_base64=True):
     if is_base64:
         path = base64.decodestring(path)
-    return unicode(path, sys.getfilesystemencoding())
+    return text(path, sys.getfilesystemencoding())
 
 
 def AppendMenu(parent, help, id, kind, text):
@@ -299,22 +203,22 @@ def ComputeTabsLayout(tabs, rect):
             raise ValueError("Not possible")
         if tab["size"][0] == rect.width:
             if tab["pos"][1] == rect.y:
-                split = (wx.TOP, float(tab["size"][1]) / float(rect.height))
+                split = (wx.TOP, tab["size"][1] / rect.height)
                 split_rect = wx.Rect(rect.x, rect.y + tab["size"][1] + TAB_BORDER,
                                      rect.width, rect.height - tab["size"][1] - TAB_BORDER)
             elif tab["pos"][1] == rect.height + 1 - tab["size"][1]:
-                split = (wx.BOTTOM, 1.0 - float(tab["size"][1]) / float(rect.height))
+                split = (wx.BOTTOM, 1.0 - tab["size"][1] / rect.height)
                 split_rect = wx.Rect(rect.x, rect.y,
                                      rect.width, rect.height - tab["size"][1] - TAB_BORDER)
             split_id = idx
             break
         elif tab["size"][1] == rect.height:
             if tab["pos"][0] == rect.x:
-                split = (wx.LEFT, float(tab["size"][0]) / float(rect.width))
+                split = (wx.LEFT, tab["size"][0] / rect.width)
                 split_rect = wx.Rect(rect.x + tab["size"][0] + TAB_BORDER, rect.y,
                                      rect.width - tab["size"][0] - TAB_BORDER, rect.height)
             elif tab["pos"][0] == rect.width + 1 - tab["size"][0]:
-                split = (wx.RIGHT, 1.0 - float(tab["size"][0]) / float(rect.width))
+                split = (wx.RIGHT, 1.0 - tab["size"][0] / rect.width)
                 split_rect = wx.Rect(rect.x, rect.y,
                                      rect.width - tab["size"][0] - TAB_BORDER, rect.height)
             split_id = idx
@@ -330,11 +234,113 @@ def ComputeTabsLayout(tabs, rect):
     return tabs
 
 
-UNEDITABLE_NAMES_DICT = dict([(_(n), n) for n in UNEDITABLE_NAMES])
-
-
 class IDEFrame(wx.Frame):
     """IDEFrame Base Class"""
+
+    def InitEditorToolbarItems(self):
+        """
+        Initialize dictionary with lists of elements that need to be shown
+        if POU in particular programming language is edited.
+        """
+        # Define behaviour of each Toolbar item according to current POU body type
+        # Informations meaning are in this order:
+        #  - Item is toggled
+        #  - PLCOpenEditor mode where item is displayed (could be more then one)
+        #  - Item id
+        #  - Item callback function name
+        #  - Item icon filename
+        #  - Item tooltip text
+        self.EditorToolBarItems = {
+            "FBD":   [(True, FREEDRAWING_MODE | DRIVENDRAWING_MODE,
+                       ID_PLCOPENEDITOREDITORTOOLBARMOTION, "OnMotionTool",
+                       "move", _("Move the view")),
+                      (True, FREEDRAWING_MODE | DRIVENDRAWING_MODE,
+                       ID_PLCOPENEDITOREDITORTOOLBARCOMMENT, "OnCommentTool",
+                       "add_comment", _("Create a new comment")),
+                      (True, FREEDRAWING_MODE | DRIVENDRAWING_MODE,
+                       ID_PLCOPENEDITOREDITORTOOLBARVARIABLE, "OnVariableTool",
+                       "add_variable", _("Create a new variable")),
+                      (True, FREEDRAWING_MODE | DRIVENDRAWING_MODE,
+                       ID_PLCOPENEDITOREDITORTOOLBARBLOCK, "OnBlockTool",
+                       "add_block", _("Create a new block")),
+                      (True, FREEDRAWING_MODE | DRIVENDRAWING_MODE,
+                       ID_PLCOPENEDITOREDITORTOOLBARCONNECTION, "OnConnectionTool",
+                       "add_connection", _("Create a new connection"))],
+            "LD":    [(True, FREEDRAWING_MODE | DRIVENDRAWING_MODE,
+                       ID_PLCOPENEDITOREDITORTOOLBARMOTION, "OnMotionTool",
+                       "move", _("Move the view")),
+                      (True, FREEDRAWING_MODE,
+                       ID_PLCOPENEDITOREDITORTOOLBARCOMMENT, "OnCommentTool",
+                       "add_comment", _("Create a new comment")),
+                      (True, FREEDRAWING_MODE,
+                       ID_PLCOPENEDITOREDITORTOOLBARPOWERRAIL, "OnPowerRailTool",
+                       "add_powerrail", _("Create a new power rail")),
+                      (False, DRIVENDRAWING_MODE,
+                       ID_PLCOPENEDITOREDITORTOOLBARRUNG, "OnRungTool",
+                       "add_rung", _("Create a new rung")),
+                      (True, FREEDRAWING_MODE,
+                       ID_PLCOPENEDITOREDITORTOOLBARCOIL, "OnCoilTool",
+                       "add_coil", _("Create a new coil")),
+                      (False, FREEDRAWING_MODE | DRIVENDRAWING_MODE,
+                       ID_PLCOPENEDITOREDITORTOOLBARCONTACT, "OnContactTool",
+                       "add_contact", _("Create a new contact")),
+                      (False, DRIVENDRAWING_MODE,
+                       ID_PLCOPENEDITOREDITORTOOLBARBRANCH, "OnBranchTool",
+                       "add_branch", _("Create a new branch")),
+                      (True, FREEDRAWING_MODE,
+                       ID_PLCOPENEDITOREDITORTOOLBARVARIABLE, "OnVariableTool",
+                       "add_variable", _("Create a new variable")),
+                      (False, FREEDRAWING_MODE | DRIVENDRAWING_MODE,
+                       ID_PLCOPENEDITOREDITORTOOLBARBLOCK, "OnBlockTool",
+                       "add_block", _("Create a new block")),
+                      (True, FREEDRAWING_MODE,
+                       ID_PLCOPENEDITOREDITORTOOLBARCONNECTION, "OnConnectionTool",
+                       "add_connection", _("Create a new connection"))],
+            "SFC":   [(True, FREEDRAWING_MODE | DRIVENDRAWING_MODE,
+                       ID_PLCOPENEDITOREDITORTOOLBARMOTION, "OnMotionTool",
+                       "move", _("Move the view")),
+                      (True, FREEDRAWING_MODE | DRIVENDRAWING_MODE,
+                       ID_PLCOPENEDITOREDITORTOOLBARCOMMENT, "OnCommentTool",
+                       "add_comment", _("Create a new comment")),
+                      (True, FREEDRAWING_MODE | DRIVENDRAWING_MODE,
+                       ID_PLCOPENEDITOREDITORTOOLBARINITIALSTEP, "OnInitialStepTool",
+                       "add_initial_step", _("Create a new initial step")),
+                      (False, FREEDRAWING_MODE | DRIVENDRAWING_MODE,
+                       ID_PLCOPENEDITOREDITORTOOLBARSTEP, "OnStepTool",
+                       "add_step", _("Create a new step")),
+                      (True, FREEDRAWING_MODE,
+                       ID_PLCOPENEDITOREDITORTOOLBARTRANSITION, "OnTransitionTool",
+                       "add_transition", _("Create a new transition")),
+                      (False, FREEDRAWING_MODE | DRIVENDRAWING_MODE,
+                       ID_PLCOPENEDITOREDITORTOOLBARACTIONBLOCK, "OnActionBlockTool",
+                       "add_action", _("Create a new action block")),
+                      (False, FREEDRAWING_MODE | DRIVENDRAWING_MODE,
+                       ID_PLCOPENEDITOREDITORTOOLBARDIVERGENCE, "OnDivergenceTool",
+                       "add_divergence", _("Create a new divergence")),
+                      (False, FREEDRAWING_MODE | DRIVENDRAWING_MODE,
+                       ID_PLCOPENEDITOREDITORTOOLBARJUMP, "OnJumpTool",
+                       "add_jump", _("Create a new jump")),
+                      (True, FREEDRAWING_MODE,
+                       ID_PLCOPENEDITOREDITORTOOLBARVARIABLE, "OnVariableTool",
+                       "add_variable", _("Create a new variable")),
+                      (True, FREEDRAWING_MODE,
+                       ID_PLCOPENEDITOREDITORTOOLBARBLOCK, "OnBlockTool",
+                       "add_block", _("Create a new block")),
+                      (True, FREEDRAWING_MODE,
+                       ID_PLCOPENEDITOREDITORTOOLBARCONNECTION, "OnConnectionTool",
+                       "add_connection", _("Create a new connection")),
+                      (True, FREEDRAWING_MODE,
+                       ID_PLCOPENEDITOREDITORTOOLBARPOWERRAIL, "OnPowerRailTool",
+                       "add_powerrail", _("Create a new power rail")),
+                      (True, FREEDRAWING_MODE,
+                       ID_PLCOPENEDITOREDITORTOOLBARCONTACT, "OnContactTool",
+                       "add_contact", _("Create a new contact"))],
+            "ST":    [],
+            "IL":    [],
+            "debug": [(True, FREEDRAWING_MODE | DRIVENDRAWING_MODE,
+                       ID_PLCOPENEDITOREDITORTOOLBARMOTION, "OnMotionTool",
+                       "move", _("Move the view"))],
+        }
 
     def _init_coll_MenuBar_Menus(self, parent):
         parent.Append(menu=self.FileMenu, title=_(u'&File'))
@@ -403,8 +409,6 @@ class IDEFrame(wx.Frame):
                   id=ID_PLCOPENEDITOREDITMENUFINDPREVIOUS)
         self.Bind(wx.EVT_MENU, self.OnSearchInProjectMenu,
                   id=ID_PLCOPENEDITOREDITMENUSEARCHINPROJECT)
-        self.Bind(wx.EVT_MENU, self.OnSearchInProjectMenu,
-                  id=ID_PLCOPENEDITOREDITMENUSEARCHINPROJECT)
         self.Bind(wx.EVT_MENU, self.OnAddDataTypeMenu,
                   id=ID_PLCOPENEDITOREDITMENUADDDATATYPE)
         self.Bind(wx.EVT_MENU, self.GenerateAddPouFunction("function"),
@@ -427,7 +431,8 @@ class IDEFrame(wx.Frame):
                                (wx.ID_COPY, "copy", _(u'Copy'), None),
                                (wx.ID_PASTE, "paste", _(u'Paste'), None),
                                None,
-                               (ID_PLCOPENEDITOREDITMENUSEARCHINPROJECT, "find", _(u'Search in Project'), None)])
+                               (ID_PLCOPENEDITOREDITMENUSEARCHINPROJECT, "find", _(u'Search in Project'), None),
+                               (ID_PLCOPENEDITORDISPLAYMENUFULLSCREEN, "fullscreen", _(u'Toggle fullscreen mode'), None)])
 
     def _init_coll_DisplayMenu_Items(self, parent):
         AppendMenu(parent, help='', id=wx.ID_REFRESH,
@@ -447,7 +452,11 @@ class IDEFrame(wx.Frame):
         parent.AppendSeparator()
         AppendMenu(parent, help='', id=ID_PLCOPENEDITORDISPLAYMENUSWITCHPERSPECTIVE,
                    kind=wx.ITEM_NORMAL, text=_(u'Switch perspective') + '\tF12')
-        self.Bind(wx.EVT_MENU, self.SwitchFullScrMode, id=ID_PLCOPENEDITORDISPLAYMENUSWITCHPERSPECTIVE)
+        self.Bind(wx.EVT_MENU, self.SwitchPerspective, id=ID_PLCOPENEDITORDISPLAYMENUSWITCHPERSPECTIVE)
+
+        AppendMenu(parent, help='', id=ID_PLCOPENEDITORDISPLAYMENUFULLSCREEN,
+                   kind=wx.ITEM_NORMAL, text=_(u'Full screen') + '\tShift-F12')
+        self.Bind(wx.EVT_MENU, self.SwitchFullScrMode, id=ID_PLCOPENEDITORDISPLAYMENUFULLSCREEN)
 
         AppendMenu(parent, help='', id=ID_PLCOPENEDITORDISPLAYMENURESETPERSPECTIVE,
                    kind=wx.ITEM_NORMAL, text=_(u'Reset Perspective'))
@@ -668,10 +677,13 @@ class IDEFrame(wx.Frame):
                           size=wx.Size(1000, 600),
                           style=wx.DEFAULT_FRAME_STYLE)
 
+        self.UNEDITABLE_NAMES_DICT = dict([(_(n), n) for n in UNEDITABLE_NAMES])
+
         self.Controler = None
         self.Config = wx.ConfigBase.Get()
         self.EnableDebug = enable_debug
 
+        self.InitEditorToolbarItems()
         self._init_ctrls(parent)
 
         # Define Tree item icon list
@@ -824,7 +836,7 @@ class IDEFrame(wx.Frame):
         return None
 
     def LoadTabLayout(self, notebook, tabs, mode="all", first_index=None):
-        if isinstance(tabs, ListType):
+        if isinstance(tabs, list):
             if len(tabs) == 0:
                 return
             raise ValueError("Not supported")
@@ -944,7 +956,11 @@ class IDEFrame(wx.Frame):
         if not wx.TheClipboard.IsOpened():
             dataobj = wx.TextDataObject()
             if wx.TheClipboard.Open():
-                success = wx.TheClipboard.GetData(dataobj)
+                success = False
+                try:
+                    success = wx.TheClipboard.GetData(dataobj)
+                except wx._core.PyAssertionError:
+                    pass
                 wx.TheClipboard.Close()
                 if success:
                     data = dataobj.GetText()
@@ -1480,17 +1496,21 @@ class IDEFrame(wx.Frame):
         def OnTabsOpenedDClick(event):
             pos = event.GetPosition()
             if tabctrl.TabHitTest(pos.x, pos.y, None):
-                self.SwitchFullScrMode(event)
+                self.SwitchPerspective(event)
             event.Skip()
         return OnTabsOpenedDClick
 
-    def SwitchFullScrMode(self, evt):
+    def SwitchPerspective(self, evt):
         pane = self.AUIManager.GetPane(self.TabsOpened)
         if pane.IsMaximized():
             self.AUIManager.RestorePane(pane)
         else:
             self.AUIManager.MaximizePane(pane)
         self.AUIManager.Update()
+
+    def SwitchFullScrMode(self, evt):
+        show = not self.IsFullScreen()
+        self.ShowFullScreen(show)
 
     # -------------------------------------------------------------------------------
     #                         Types Tree Management Functions
@@ -1799,6 +1819,47 @@ class IDEFrame(wx.Frame):
         else:
             event.Skip()
 
+    def GetProjectElementWindow(self, element, tagname):
+        new_window = None
+        if self.Controler.GetEditedElement(tagname) is not None:
+            new_window = None
+            if element == ITEM_CONFIGURATION:
+                new_window = ConfigurationEditor(self.TabsOpened, tagname, self, self.Controler)
+                new_window.SetIcon(GetBitmap("CONFIGURATION"))
+            elif element == ITEM_RESOURCE:
+                new_window = ResourceEditor(self.TabsOpened, tagname, self, self.Controler)
+                new_window.SetIcon(GetBitmap("RESOURCE"))
+            elif element in [ITEM_POU, ITEM_TRANSITION, ITEM_ACTION]:
+                bodytype = self.Controler.GetEditedElementBodyType(tagname)
+                if bodytype == "FBD":
+                    new_window = Viewer(self.TabsOpened, tagname, self, self.Controler)
+                    new_window.RefreshScaling(False)
+                elif bodytype == "LD":
+                    new_window = LD_Viewer(self.TabsOpened, tagname, self, self.Controler)
+                    new_window.RefreshScaling(False)
+                elif bodytype == "SFC":
+                    new_window = SFC_Viewer(self.TabsOpened, tagname, self, self.Controler)
+                    new_window.RefreshScaling(False)
+                else:
+                    new_window = TextViewer(self.TabsOpened, tagname, self, self.Controler)
+                    new_window.SetTextSyntax(bodytype)
+                    if bodytype == "IL":
+                        new_window.SetKeywords(IL_KEYWORDS)
+                    else:
+                        new_window.SetKeywords(ST_KEYWORDS)
+                if element == ITEM_POU:
+                    pou_type = self.Controler.GetEditedElementType(tagname)[1].upper()
+                    icon = GetBitmap(pou_type, bodytype)
+                elif element == ITEM_TRANSITION:
+                    icon = GetBitmap("TRANSITION", bodytype)
+                elif element == ITEM_ACTION:
+                    icon = GetBitmap("ACTION", bodytype)
+                new_window.SetIcon(icon)
+            elif element == ITEM_DATATYPE:
+                new_window = DataTypeEditor(self.TabsOpened, tagname, self, self.Controler)
+                new_window.SetIcon(GetBitmap("DATATYPE"))
+        return new_window
+
     def EditProjectElement(self, element, tagname, onlyopened=False):
         openedidx = self.IsOpened(tagname)
         if openedidx is not None:
@@ -1811,49 +1872,11 @@ class IDEFrame(wx.Frame):
         elif not onlyopened:
             if isinstance(element, EditorPanel):
                 new_window = element
-                self.AddPage(element, "")
-            elif self.Controler.GetEditedElement(tagname) is not None:
-                new_window = None
-                if element == ITEM_CONFIGURATION:
-                    new_window = ConfigurationEditor(self.TabsOpened, tagname, self, self.Controler)
-                    new_window.SetIcon(GetBitmap("CONFIGURATION"))
-                    self.AddPage(new_window, "")
-                elif element == ITEM_RESOURCE:
-                    new_window = ResourceEditor(self.TabsOpened, tagname, self, self.Controler)
-                    new_window.SetIcon(GetBitmap("RESOURCE"))
-                    self.AddPage(new_window, "")
-                elif element in [ITEM_POU, ITEM_TRANSITION, ITEM_ACTION]:
-                    bodytype = self.Controler.GetEditedElementBodyType(tagname)
-                    if bodytype == "FBD":
-                        new_window = Viewer(self.TabsOpened, tagname, self, self.Controler)
-                        new_window.RefreshScaling(False)
-                    elif bodytype == "LD":
-                        new_window = LD_Viewer(self.TabsOpened, tagname, self, self.Controler)
-                        new_window.RefreshScaling(False)
-                    elif bodytype == "SFC":
-                        new_window = SFC_Viewer(self.TabsOpened, tagname, self, self.Controler)
-                        new_window.RefreshScaling(False)
-                    else:
-                        new_window = TextViewer(self.TabsOpened, tagname, self, self.Controler)
-                        new_window.SetTextSyntax(bodytype)
-                        if bodytype == "IL":
-                            new_window.SetKeywords(IL_KEYWORDS)
-                        else:
-                            new_window.SetKeywords(ST_KEYWORDS)
-                    if element == ITEM_POU:
-                        pou_type = self.Controler.GetEditedElementType(tagname)[1].upper()
-                        icon = GetBitmap(pou_type, bodytype)
-                    elif element == ITEM_TRANSITION:
-                        icon = GetBitmap("TRANSITION", bodytype)
-                    elif element == ITEM_ACTION:
-                        icon = GetBitmap("ACTION", bodytype)
-                    new_window.SetIcon(icon)
-                    self.AddPage(new_window, "")
-                elif element == ITEM_DATATYPE:
-                    new_window = DataTypeEditor(self.TabsOpened, tagname, self, self.Controler)
-                    new_window.SetIcon(GetBitmap("DATATYPE"))
-                    self.AddPage(new_window, "")
+            else:
+                new_window = self.GetProjectElementWindow(element, tagname)
+
             if new_window is not None:
+                self.AddPage(new_window, "")
                 openedidx = self.IsOpened(tagname)
                 old_selected = self.TabsOpened.GetSelection()
                 if old_selected != openedidx:
@@ -1879,7 +1902,7 @@ class IDEFrame(wx.Frame):
             if item_infos["type"] == ITEM_PROJECT:
                 name = "Project"
             else:
-                name = UNEDITABLE_NAMES_DICT[name]
+                name = self.UNEDITABLE_NAMES_DICT[name]
 
             if name == "Data Types":
                 menu = wx.Menu(title='')
@@ -1974,7 +1997,7 @@ class IDEFrame(wx.Frame):
                     new_id = wx.NewId()
                     AppendMenu(change_menu, help='', id=new_id, kind=wx.ITEM_NORMAL, text=_("Program"))
                     self.Bind(wx.EVT_MENU, self.GenerateChangePouTypeFunction(name, "program"), id=new_id)
-                    menu.AppendMenu(wx.NewId(), _("Change POU Type To"), change_menu)
+                    menu.AppendMenu(wx.NewId(), _("Duplicate as..."), change_menu)
                 new_id = wx.NewId()
                 AppendMenu(menu, help='', id=new_id, kind=wx.ITEM_NORMAL, text=_("Rename"))
                 self.Bind(wx.EVT_MENU, self.OnRenamePouMenu, id=new_id)
@@ -2143,7 +2166,7 @@ class IDEFrame(wx.Frame):
             self.CurrentEditorToolBar = []
             EditorToolBar = self.Panes["EditorToolBar"]
             if EditorToolBar:
-                for radio, modes, id, method, picture, help in EditorToolBarItems[menu]:
+                for radio, modes, id, method, picture, help in self.EditorToolBarItems[menu]:
                     if modes & self.DrawingMode:
                         if radio or self.DrawingMode == FREEDRAWING_MODE:
                             EditorToolBar.AddRadioTool(id, GetBitmap(picture), wx.NullBitmap, help)
@@ -2152,8 +2175,9 @@ class IDEFrame(wx.Frame):
                         self.Bind(wx.EVT_MENU, getattr(self, method), id=id)
                         self.CurrentEditorToolBar.append(id)
                 EditorToolBar.Realize()
-                self.AUIManager.GetPane("EditorToolBar").BestSize(EditorToolBar.GetBestSize())
                 self.AUIManager.GetPane("EditorToolBar").Show()
+                self.AUIManager.Update()
+                self.AUIManager.GetPane("EditorToolBar").BestSize(EditorToolBar.GetBestSize())
                 self.AUIManager.Update()
         elif menu is None:
             self.ResetEditorToolBar()
@@ -2408,7 +2432,7 @@ class IDEFrame(wx.Frame):
 
         if self.ProjectTree.GetPyData(selected)["type"] != ITEM_PROJECT:
             pou_type = self.ProjectTree.GetItemText(selected)
-            pou_type = UNEDITABLE_NAMES_DICT[pou_type]  # one of 'Functions', 'Function Blocks' or 'Programs'
+            pou_type = self.UNEDITABLE_NAMES_DICT[pou_type]  # one of 'Functions', 'Function Blocks' or 'Programs'
             pou_type = {'Functions': 'function', 'Function Blocks': 'functionBlock', 'Programs': 'program'}[pou_type]
         else:
             pou_type = None
@@ -2417,7 +2441,7 @@ class IDEFrame(wx.Frame):
 
         result = self.Controler.PastePou(pou_type, pou_xml)
 
-        if not isinstance(result, TupleType):
+        if not isinstance(result, tuple):
             self.ShowErrorMessage(result)
         else:
             self._Refresh(TITLE, EDITORTOOLBAR, FILEMENU, EDITMENU, PROJECTTREE, LIBRARYTREE)
@@ -2573,7 +2597,7 @@ class IDEFrame(wx.Frame):
 
 
 def UPPER_DIV(x, y):
-    return (x / y) + {True: 0, False: 1}[(x % y) == 0]
+    return (x // y) + {True: 0, False: 1}[(x % y) == 0]
 
 
 class GraphicPrintout(wx.Printout):
@@ -2610,6 +2634,8 @@ class GraphicPrintout(wx.Printout):
 
     def OnPrintPage(self, page):
         dc = self.GetDC()
+        dc.SetBackground(wx.WHITE_BRUSH)
+        dc.Clear()
         dc.SetUserScale(1.0, 1.0)
         dc.SetDeviceOrigin(0, 0)
         dc.printing = not self.Preview
@@ -2618,8 +2644,8 @@ class GraphicPrintout(wx.Printout):
         ppiPrinterX, ppiPrinterY = self.GetPPIPrinter()
         pw, ph = self.GetPageSizePixels()
         dw, dh = dc.GetSizeTuple()
-        Xscale = (float(dw) * float(ppiPrinterX)) / (float(pw) * 25.4)
-        Yscale = (float(dh) * float(ppiPrinterY)) / (float(ph) * 25.4)
+        Xscale = (dw * ppiPrinterX) / (pw * 25.4)
+        Yscale = (dh * ppiPrinterY) / (ph * 25.4)
 
         fontsize = self.FontSize * Yscale
 
@@ -2641,10 +2667,10 @@ class GraphicPrintout(wx.Printout):
 
         # Calculate the position on the DC for centering the graphic
         posX = area_width * ((page - 1) % self.PageGrid[0])
-        posY = area_height * ((page - 1) / self.PageGrid[0])
+        posY = area_height * ((page - 1) // self.PageGrid[0])
 
-        scaleX = float(area_width) / float(self.PageSize[0])
-        scaleY = float(area_height) / float(self.PageSize[1])
+        scaleX = area_width / self.PageSize[0]
+        scaleY = area_height / self.PageSize[1]
         scale = min(scaleX, scaleY)
 
         # Set the scale and origin

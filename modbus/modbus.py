@@ -25,8 +25,9 @@
 
 from __future__ import absolute_import
 import os
-from modbus.mb_utils import *
+from six.moves import xrange
 
+from modbus.mb_utils import *
 from ConfigTreeNode import ConfigTreeNode
 from PLCControler import LOCATION_CONFNODE, LOCATION_VAR_MEMORY
 
@@ -121,7 +122,7 @@ class _RequestPlug(object):
                 "type": LOCATION_VAR_MEMORY,
                 "size": datasize,
                 "IEC_type": datatype,
-                "var_name": "var_name",
+                "var_name": "MB_" + "".join([w[0] for w in dataname.split()]) + "_" + str(offset),
                 "location": datatacc + ".".join([str(i) for i in current_location]) + "." + str(offset),
                 "description": "description",
                 "children": []})
@@ -226,7 +227,7 @@ class _MemoryAreaPlug(object):
                 "type": LOCATION_VAR_MEMORY,
                 "size": datasize,
                 "IEC_type": datatype,
-                "var_name": "var_name",
+                "var_name": "MB_" + "".join([w[0] for w in dataname.split()]) + "_" + str(offset),
                 "location": datatacc + ".".join([str(i) for i in current_location]) + "." + str(offset),
                 "description": "description",
                 "children": []})
@@ -788,7 +789,7 @@ class RootClass(object):
 
         LDFLAGS = []
         LDFLAGS.append(" \"-L" + ModbusPath + "\"")
-        LDFLAGS.append(" -lmb ")
+        LDFLAGS.append(" \"" + os.path.join(ModbusPath, "libmb.a") + "\"")
         LDFLAGS.append(" \"-Wl,-rpath," + ModbusPath + "\"")
         # LDFLAGS.append("\"" + os.path.join(ModbusPath, "mb_slave_and_master.o") + "\"")
         # LDFLAGS.append("\"" + os.path.join(ModbusPath, "mb_slave.o") + "\"")

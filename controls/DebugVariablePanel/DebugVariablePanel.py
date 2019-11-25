@@ -24,7 +24,8 @@
 
 
 from __future__ import absolute_import
-from types import TupleType
+from __future__ import division
+from functools import reduce
 import numpy
 
 import wx
@@ -35,8 +36,6 @@ import wx.lib.buttons
 import matplotlib
 matplotlib.use('WX')   # noqa
 import matplotlib.pyplot
-from matplotlib.backends.backend_wxagg import _convert_agg_to_wx_bitmap
-
 
 from editors.DebugViewer import DebugViewer
 from util.BitmapLibrary import GetBitmap
@@ -51,14 +50,6 @@ SECOND = 1000 * MILLISECOND  # Number of nanosecond in a second
 MINUTE = 60 * SECOND         # Number of nanosecond in a minute
 HOUR = 60 * MINUTE           # Number of nanosecond in a hour
 DAY = 24 * HOUR              # Number of nanosecond in a day
-
-# List of values possible for graph range
-# Format is [(time_in_plain_text, value_in_nanosecond),...]
-RANGE_VALUES = \
-    [(_("%dms") % i, i * MILLISECOND) for i in (10, 20, 50, 100, 200, 500)] + \
-    [(_("%ds") % i, i * SECOND) for i in (1, 2, 5, 10, 20, 30)] + \
-    [(_("%dm") % i, i * MINUTE) for i in (1, 2, 5, 10, 20, 30)] + \
-    [(_("%dh") % i, i * HOUR) for i in (1, 2, 3, 6, 12, 24)]
 
 # Scrollbar increment in pixel
 SCROLLBAR_UNIT = 10
@@ -133,7 +124,7 @@ class DebugVariableDropTarget(wx.TextDropTarget):
         # Check that data is valid regarding DebugVariablePanel
         try:
             values = eval(data)
-            if not isinstance(values, TupleType):
+            if not isinstance(values, tuple):
                 raise ValueError
         except Exception:
             message = _("Invalid value \"%s\" for debug variable") % data
@@ -191,6 +182,13 @@ class DebugVariablePanel(wx.Panel, DebugViewer):
         """
         wx.Panel.__init__(self, parent, style=wx.SP_3D | wx.TAB_TRAVERSAL)
 
+        # List of values possible for graph range
+        # Format is [(time_in_plain_text, value_in_nanosecond),...]
+        self.RANGE_VALUES = [(_("%dms") % i, i * MILLISECOND) for i in (10, 20, 50, 100, 200, 500)] + \
+                            [(_("%ds") % i, i * SECOND) for i in (1, 2, 5, 10, 20, 30)] + \
+                            [(_("%dm") % i, i * MINUTE) for i in (1, 2, 5, 10, 20, 30)] + \
+                            [(_("%dh") % i, i * HOUR) for i in (1, 2, 3, 6, 12, 24)]
+
         # Save Reference to Beremiz frame
         self.ParentWindow = window
 
@@ -235,7 +233,7 @@ class DebugVariablePanel(wx.Panel, DebugViewer):
 
         self.CanvasRange.Clear()
         default_range_idx = 0
-        for idx, (text, _value) in enumerate(RANGE_VALUES):
+        for idx, (text, _value) in enumerate(self.RANGE_VALUES):
             self.CanvasRange.Append(text)
             if _value == 1000000000:
                 default_range_idx = idx
@@ -281,7 +279,6 @@ class DebugVariablePanel(wx.Panel, DebugViewer):
         self.GraphicsWindow = wx.ScrolledWindow(self, style=wx.HSCROLL | wx.VSCROLL)
         self.GraphicsWindow.SetBackgroundColour(wx.WHITE)
         self.GraphicsWindow.SetDropTarget(DebugVariableDropTarget(self))
-        self.GraphicsWindow.Bind(wx.EVT_ERASE_BACKGROUND, self.OnGraphicsWindowEraseBackground)
         self.GraphicsWindow.Bind(wx.EVT_PAINT, self.OnGraphicsWindowPaint)
         self.GraphicsWindow.Bind(wx.EVT_SIZE, self.OnGraphicsWindowResize)
         self.GraphicsWindow.Bind(wx.EVT_MOUSEWHEEL, self.OnGraphicsWindowMouseWheel)
@@ -309,8 +306,8 @@ class DebugVariablePanel(wx.Panel, DebugViewer):
             self.Ticktime = MILLISECOND
 
         # Calculate range to apply to data
-        self.CurrentRange = RANGE_VALUES[
-            self.CanvasRange.GetSelection()][1] / self.Ticktime
+        self.CurrentRange = self.RANGE_VALUES[
+            self.CanvasRange.GetSelection()][1] // self.Ticktime
 
     def SetDataProducer(self, producer):
         """
@@ -393,7 +390,7 @@ class DebugVariablePanel(wx.Panel, DebugViewer):
             cursor_tick_idx = numpy.argmin(numpy.abs(self.Ticks - cursor_tick))
             if self.Ticks[cursor_tick_idx] == self.CursorTick:
                 cursor_tick_idx = max(0,
-                                      min(cursor_tick_idx + abs(move) / move,
+                                      min(cursor_tick_idx + abs(move) // move,
                                           len(self.Ticks) - 1))
             self.CursorTick = self.Ticks[cursor_tick_idx]
             self.StartTick = max(
@@ -491,18 +488,18 @@ class DebugVariablePanel(wx.Panel, DebugViewer):
                 panel.ShowButtons(True)
                 merge_type = GRAPH_PARALLEL
                 if isinstance(panel, DebugVariableTextViewer) or panel.Is3DCanvas():
-                    if y_mouse > yw + height / 2:
+                    if y_mouse > yw + height // 2:
                         idx += 1
                     wx.CallAfter(self.MoveValue, variable, idx, True)
                 else:
                     rect = panel.GetAxesBoundingBox(True)
                     if rect.InsideXY(x_mouse, y_mouse):
-                        merge_rect = wx.Rect(rect.x, rect.y, rect.width / 2., rect.height)
+                        merge_rect = wx.Rect(rect.x, rect.y, rect.width // 2, rect.height)
                         if merge_rect.InsideXY(x_mouse, y_mouse):
                             merge_type = GRAPH_ORTHOGONAL
                         wx.CallAfter(self.MergeGraphs, variable, idx, merge_type, force=True)
                     else:
-                        if y_mouse > yw + height / 2:
+                        if y_mouse > yw + height // 2:
                             idx += 1
                         wx.CallAfter(self.MoveValue, variable, idx, True)
                 self.ForceRefresh()
@@ -523,25 +520,16 @@ class DebugVariablePanel(wx.Panel, DebugViewer):
         self.RefreshGraphicsWindowScrollbars()
 
     def RefreshView(self):
+        """Triggers EVT_PAINT event to refresh UI"""
+        self.Refresh()
+
+    def DrawView(self):
+        """
+        Redraw elements.
+        Method is used by EVT_PAINT handler.
+        """
+
         self.RefreshCanvasPosition()
-
-        width, height = self.GraphicsWindow.GetVirtualSize()
-        bitmap = wx.EmptyBitmap(width, height)
-        dc = wx.BufferedDC(wx.ClientDC(self.GraphicsWindow), bitmap)
-        dc.Clear()
-        dc.BeginDrawing()
-        if self.DraggingAxesPanel is not None:
-            destBBox = self.DraggingAxesBoundingBox
-            srcBBox = self.DraggingAxesPanel.GetAxesBoundingBox()
-
-            srcBmp = _convert_agg_to_wx_bitmap(self.DraggingAxesPanel.get_renderer(), None)
-            srcDC = wx.MemoryDC()
-            srcDC.SelectObject(srcBmp)
-
-            dc.Blit(destBBox.x, destBBox.y,
-                    int(destBBox.width), int(destBBox.height),
-                    srcDC, srcBBox.x, srcBBox.y)
-        dc.EndDrawing()
 
         if not self.Fixed or self.Force:
             self.Force = False
@@ -568,16 +556,16 @@ class DebugVariablePanel(wx.Panel, DebugViewer):
             tick_duration = int(tick * self.Ticktime)
             not_null = False
             duration = ""
-            for value, format in [(tick_duration / DAY, _("%dd")),
-                                  ((tick_duration % DAY) / HOUR, _("%dh")),
-                                  ((tick_duration % HOUR) / MINUTE, _("%dm")),
-                                  ((tick_duration % MINUTE) / SECOND, _("%ds"))]:
+            for value, format in [(tick_duration // DAY, _("%dd")),
+                                  ((tick_duration % DAY) // HOUR, _("%dh")),
+                                  ((tick_duration % HOUR) // MINUTE, _("%dm")),
+                                  ((tick_duration % MINUTE) // SECOND, _("%ds"))]:
 
                 if value > 0 or not_null:
                     duration += format % value
                     not_null = True
 
-            duration += _("%03gms") % (float(tick_duration % SECOND) / MILLISECOND)
+            duration += _("%03gms") % ((tick_duration % SECOND) / MILLISECOND)
             self.TickTimeLabel.SetLabel("t: %s" % duration)
         else:
             self.TickLabel.SetLabel("")
@@ -634,10 +622,10 @@ class DebugVariablePanel(wx.Panel, DebugViewer):
     def ChangeRange(self, dir, tick=None):
         current_range = self.CurrentRange
         current_range_idx = self.CanvasRange.GetSelection()
-        new_range_idx = max(0, min(current_range_idx + dir, len(RANGE_VALUES) - 1))
+        new_range_idx = max(0, min(current_range_idx + dir, len(self.RANGE_VALUES) - 1))
         if new_range_idx != current_range_idx:
             self.CanvasRange.SetSelection(new_range_idx)
-            self.CurrentRange = RANGE_VALUES[new_range_idx][1] / self.Ticktime
+            self.CurrentRange = self.RANGE_VALUES[new_range_idx][1] / self.Ticktime
             if len(self.Ticks) > 0:
                 if tick is None:
                     tick = self.StartTick + self.CurrentRange / 2.
@@ -659,7 +647,7 @@ class DebugVariablePanel(wx.Panel, DebugViewer):
 
     def OnRangeChanged(self, event):
         try:
-            self.CurrentRange = RANGE_VALUES[self.CanvasRange.GetSelection()][1] / self.Ticktime
+            self.CurrentRange = self.RANGE_VALUES[self.CanvasRange.GetSelection()][1] // self.Ticktime
         except ValueError:
             self.CanvasRange.SetValue(str(self.CurrentRange))
         wx.CallAfter(self.RefreshRange)
@@ -930,18 +918,18 @@ class DebugVariablePanel(wx.Panel, DebugViewer):
         xstart, ystart = self.GraphicsWindow.GetViewStart()
         window_size = self.GraphicsWindow.GetClientSize()
         vwidth, vheight = self.GraphicsSizer.GetMinSize()
-        posx = max(0, min(xstart, (vwidth - window_size[0]) / SCROLLBAR_UNIT))
-        posy = max(0, min(ystart, (vheight - window_size[1]) / SCROLLBAR_UNIT))
+        posx = max(0, min(xstart, (vwidth - window_size[0]) // SCROLLBAR_UNIT))
+        posy = max(0, min(ystart, (vheight - window_size[1]) // SCROLLBAR_UNIT))
         self.GraphicsWindow.Scroll(posx, posy)
         self.GraphicsWindow.SetScrollbars(SCROLLBAR_UNIT, SCROLLBAR_UNIT,
-                                          vwidth / SCROLLBAR_UNIT, vheight / SCROLLBAR_UNIT,
+                                          vwidth // SCROLLBAR_UNIT,
+                                          vheight // SCROLLBAR_UNIT,
                                           posx, posy)
 
-    def OnGraphicsWindowEraseBackground(self, event):
-        pass
-
     def OnGraphicsWindowPaint(self, event):
-        self.RefreshView()
+        """EVT_PAINT handler"""
+
+        self.DrawView()
         event.Skip()
 
     def OnGraphicsWindowResize(self, event):

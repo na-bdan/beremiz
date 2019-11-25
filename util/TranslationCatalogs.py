@@ -25,14 +25,14 @@
 
 from __future__ import absolute_import
 import os
-import __builtin__
+from six.moves import builtins
 import wx
 
 
 locale = None
 
 
-__builtin__.__dict__['_'] = wx.GetTranslation
+builtins.__dict__['_'] = wx.GetTranslation
 
 
 def GetDomain(path):
@@ -55,7 +55,9 @@ def AddCatalog(locale_dir):
             global locale
             if locale is None:
                 # Define locale for wx
+                wx.LogGui.EnableLogging(False)
                 locale = wx.Locale(wx.LANGUAGE_DEFAULT)
+                wx.LogGui.EnableLogging(True)
 
             locale.AddCatalogLookupPathPrefix(locale_dir)
             locale.AddCatalog(domain)

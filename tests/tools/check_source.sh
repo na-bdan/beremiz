@@ -31,6 +31,11 @@ set_exit_error()
     fi
 }
 
+version_gt()
+{
+    test "$(printf '%s\n' "$@" | sort -V | head -n 1)" != "$1";
+}
+
 
 compile_checks()
 {
@@ -44,6 +49,47 @@ compile_checks()
         # echo $i
         python -m py_compile $i
         if [ $? -ne 0 ]; then
+            echo "Syntax error in $i"
+            set_exit_error
+        fi
+    done
+    echo "DONE"
+    echo ""
+}
+
+
+python3_compile_checks()
+{
+    echo "Syntax checking using python3 ..."
+    python3 --version
+
+    # remove compiled Python files
+    find . -name '*.pyc' -exec rm -f {} \;
+
+    for i in $py3_files; do
+        # echo $i
+        python3 -m py_compile $i
+        if [ $? -ne 0 ]; then
+            echo "Syntax error in $i"
+            set_exit_error
+        fi
+    done
+
+    # remove compiled Python files
+    find . -name '*.pyc' -exec rm -f {} \;
+
+    echo "DONE"
+    echo ""
+}
+
+localization_checks()
+{
+    echo "Check correct localization formats"
+    xgettext --version
+    
+    for i in $py_files; do
+        xgettext -s --language=Python --package-name Beremiz --output=/tmp/m.pot $i 2>&1 | grep 'warning'
+        if [ $? -eq 0 ]; then
             echo "Syntax error in $i"
             set_exit_error
         fi
@@ -74,8 +120,7 @@ pep8_checks_default()
     test -z $pep8 && return
 
     user_ignore=
-    # user_ignore=$user_ignore,E265  # E265 block comment should start with '# '
-    user_ignore=$user_ignore,E501  # E501 line too long (80 > 79 characters)
+    user_ignore=$user_ignore,W606  # W606 'async' and 'await' are reserved keywords starting with Python 3.7
 
     # ignored by default,
     default_ignore=
@@ -88,10 +133,11 @@ pep8_checks_default()
     default_ignore=$default_ignore,E242  # E242 tab after ‘,’
     default_ignore=$default_ignore,E704  # E704 multiple statements on one line (def)
     default_ignore=$default_ignore,W503  # W503 line break occurred before a binary operator
+    default_ignore=$default_ignore,W504  # W504 line break occurred after a binary operator
+    default_ignore=$default_ignore,W505  # W505 doc line too long (82 > 79 characters)
     ignore=$user_ignore,$default_ignore
 
-    # $pep8 --ignore $ignore --exclude build ./
-    $pep8 --max-line-length 300 --exclude build $py_files
+    $pep8 --max-line-length 300 --ignore=$ignore --exclude build $py_files
     if [ $? -ne 0 ]; then
         set_exit_error
     fi
@@ -116,6 +162,7 @@ pep8_checks_selected()
     user_select=$user_select,E228   # E228 missing whitespace around modulo operator
     user_select=$user_select,W293   # W293 blank line contains whitespace
     user_select=$user_select,E302   # E302 expected 2 blank lines, found 1
+    user_select=$user_select,E301   # E301 expected 2 blank lines, found 1
     user_select=$user_select,E261   # E261 at least two spaces before inline comment
     user_select=$user_select,E271   # E271 multiple spaces after keyword
     user_select=$user_select,E231   # E231 missing whitespace after ','
@@ -195,6 +242,7 @@ flake8_checks()
 }
 
 pylint_checks()
+
 {
     echo "Check for problems using pylint ..."
 
@@ -214,7 +262,6 @@ pylint_checks()
     disable=$disable,C0103        # invalid-name
     disable=$disable,C0326        # bad whitespace
     disable=$disable,W0110        # (deprecated-lambda) map/filter on lambda could be replaced by comprehension
-    disable=$disable,W1401        # (anomalous-backslash-in-string) Anomalous backslash in string: '\.'. String constant might be missing an r prefix.
     disable=$disable,W0613        # (unused-argument) Unused argument 'X'
     disable=$disable,W0622        # (redefined-builtin) Redefining built-in
     disable=$disable,W0621        # (redefined-outer-name) Redefining name 'Y' from outer scope (line X)
@@ -225,6 +272,10 @@ pylint_checks()
     disable=$disable,R0201        # (no-self-use) Method could be a function
     disable=$disable,W0221        # (arguments-differ) Arguments number differs from overridden 'X' method
     disable=$disable,C0201        # (consider-iterating-dictionary) Consider iterating the dictionary directly instead of calling .keys()
+    disable=$disable,W0201        # (attribute-defined-outside-init) Attribute 'X' defined outside __init__
+    disable=$disable,I1101        # (c-extension-no-member) Module 'lxml.etree' has not 'X' member,
+                                  # but source is unavailable. Consider adding this module to extension-pkg-whitelist
+                                  # if you want to perform analysis based on run-time introspection of living objects.
 
     # It'd be nice to fix warnings below some day
     disable=$disable,C0111        # missing-docstring
@@ -244,8 +295,11 @@ pylint_checks()
     disable=$disable,R0916        # (too-many-boolean-expressions) Too many boolean expressions in if statement (6/5)
     disable=$disable,R0101        # (too-many-nested-blocks) Too many nested blocks (7/5)
     disable=$disable,R0801        # (duplicate-code) Similar lines in N files
-
-
+    disable=$disable,W0401        # (wildcard-import) Wildcard import 
+    disable=$disable,W0614        # (unused-wildcard-import), ] Unused import X from wildcard import
+    disable=$disable,W0212        # (protected-access) Access to a protected member X of a Y class
+    disable=$disable,E1101        # (no-member) Instance of 'X' has no 'Y' member
+    
     enable=
     enable=$enable,E1601          # print statement used
     enable=$enable,C0325          # (superfluous-parens) Unnecessary parens after keyword
@@ -260,11 +314,9 @@ pylint_checks()
     enable=$enable,W0101          # (unreachable) Unreachable code
     enable=$enable,E0102          # (function-redefined) method already defined
     enable=$enable,W0602          # (global-variable-not-assigned) Using global for 'X' but no assignment is done
-    enable=$enable,W0612          # (unused-variable) Unused variable 'X'
     enable=$enable,W0611          # (unused-import) Unused import X
     enable=$enable,C1001          # (old-style-class) Old-style class defined. Problem with PyJS
     enable=$enable,W0102          # (dangerous-default-value) Dangerous default value {} as argument
-    enable=$enable,W0403          # (relative-import) Relative import 'Y', should be 'X.Y'
     enable=$enable,C0112          # (empty-docstring)
     enable=$enable,W0631          # (undefined-loop-variable) Using possibly undefined loop variable 'X'
     enable=$enable,W0104          # (pointless-statement) Statement seems to have no effect
@@ -281,18 +333,58 @@ pylint_checks()
     enable=$enable,E0213          # (no-self-argument) Method should have "self" as first argument
     enable=$enable,E0401          # (import-error) Unable to import 'X'
     enable=$enable,E1121          # (too-many-function-args) Too many positional arguments for function call
-    enable=$enable,E0602          # (undefined-variable) Undefined variable 'X'
     enable=$enable,W0232          # (no-init) Class has no __init__ method
     enable=$enable,W0233          # (non-parent-init-called) __init__ method from a non direct base class 'X' is called
     enable=$enable,W0601          # (global-variable-undefined) Global variable 'X' undefined at the module level
+    enable=$enable,W0111          # (assign-to-new-keyword) Name async will become a keyword in Python 3.7
     enable=$enable,W0623          # (redefine-in-handler) Redefining name 'X' from outer scope (line Y) in exception handler
+    enable=$enable,W0109          # (duplicate-key) Duplicate key 'X' in dictionary
+    enable=$enable,E1310          # (bad-str-strip-call) Suspicious argument in str.strip call
+    enable=$enable,E1300          # (bad-format-character) Unsupported format character '"' (0x22) at index 17
+    enable=$enable,E1304          # (missing-format-string-key) Missing key 'X_name' in format string dictionary
+    enable=$enable,R1701          # (consider-merging-isinstance) Consider merging these isinstance calls to isinstance(CTNLDFLAGS, (str, unicode))
+    enable=$enable,R1704          # (redefined-argument-from-local) Redefining argument with the local name 'Y'
     enable=$enable,W0106          # (expression-not-assigned) Expression "X" is assigned to nothing
-    enable=$enable,C0330          # (bad-continuation) Wrong hanging indentation before block
     enable=$enable,E1136          # (unsubscriptable-object) Value 'X' is unsubscriptable
+    enable=$enable,E0602          # (undefined-variable) Undefined variable 'X'
     enable=$enable,W1618          # (no-absolute-import) import missing `from __future__ import absolute_import`
+    enable=$enable,W0403          # (relative-import) Relative import 'Y', should be 'X.Y '
+    enable=$enable,W0612          # (unused-variable) Unused variable 'X'
+    enable=$enable,C0330          # (bad-continuation) Wrong hanging indentation before block
+    enable=$enable,R0123          # (literal-comparison) Comparison to literal
+
+    # python3 compatibility checks
+    enable=$enable,W1648          # (bad-python3-import) Module moved in Python 3
+    enable=$enable,W1613          # (xrange-builtin) xrange built-in referenced
+    enable=$enable,W1612          # (unicode-builtin) unicode built-in referenced
+    enable=$enable,W1619          # (old-division) division w/o __future__ statement
+    enable=$enable,W1601          # (apply-builtin) apply built-in referenced
+    enable=$enable,W1659          # (xreadlines-attribute) Accessing a removed xreadlines attribute
+    enable=$enable,W1607          # (file-builtin) file built-in referenced
+    enable=$enable,W1606          # (execfile-builtin) execfile built-in referenced
+    enable=$enable,W1629          # (nonzero-method) __nonzero__ method defined
+    enable=$enable,W1602          # (basestring-builtin) basestring built-in referenced
+    enable=$enable,W1646          # (invalid-str-codec) non-text encoding used in str.decode
+    enable=$enable,W1645          # (exception-message-attribute) Exception.message removed in Python 3
+    enable=$enable,W1649          # (deprecated-string-function) Accessing a deprecated function on the string module
+    enable=$enable,W1651          # (deprecated-itertools-function) Accessing a deprecated function on the itertools module
+    enable=$enable,W1652          # (deprecated-types-field) Accessing a deprecated fields on the types module
+    enable=$enable,W1611          # (standarderror-builtin) StandardError built-in referenced
+    enable=$enable,W1624          # (indexing-exception) Indexing exceptions will not work on Python 3
+    enable=$enable,W1625          # (raising-string) Raising a string exception
+    enable=$enable,W1622          # (next-method-called) Called a next() method on an object
+    enable=$enable,W1653          # (next-method-defined) next method defined
+    enable=$enable,W1610          # (reduce-builtin) reduce built-in referenced
+    enable=$enable,W1633          # (round-builtin) round built-in referenced
     # enable=
 
     options=
+
+    ver=$(pylint --version 2>&1 | grep pylint  | awk '{ print $2 }')
+    if version_gt $ver '1.6.8'; then
+	echo "Use multiple threads for pylint"
+	options="$options --jobs=0 "
+    fi
     options="$options --rcfile=.pylint"
     # options="$options --py3k"   # report errors for Python 3 porting
 
@@ -317,6 +409,10 @@ pylint_checks()
 get_files_to_check()
 {
     py_files=$(find . -name '*.py' -not -path '*/build/*')
+    if [ -e .hg/skiphook ]; then
+	echo "Skipping checks in the hook ..."
+	exit 0
+    fi
     if [ "$1" = "--only-changes" ]; then
         if which hg > /dev/null; then
             if [ ! -z "$HG_NODE" ]; then
@@ -348,6 +444,8 @@ get_files_to_check()
         echo "No files to check"
         exit 0;
     fi
+
+    py3_files=$(echo $py_files | sed 's/ [[:alnum:]_\-\/.]*pyjslib.py//')
 }
 
 
@@ -371,7 +469,9 @@ print_help()
 main()
 {
     get_files_to_check $@
+    python3_compile_checks
     compile_checks
+    localization_checks
     pep8_checks_default
     # pep8_checks_selected
 

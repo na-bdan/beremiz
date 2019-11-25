@@ -45,9 +45,6 @@ def GetDirFilterChoiceOptions():
             (_("Memory"), [LOCATION_VAR_MEMORY])]
 
 
-DIRFILTERCHOICE_OPTIONS = dict([(_(option), filter) for option, filter in GetDirFilterChoiceOptions()])
-
-
 def GetTypeFilterChoiceOptions():
     _ = NoTranslate
     return [_("All"),
@@ -72,7 +69,9 @@ class BrowseLocationsDialog(wx.Dialog):
         wx.Dialog.__init__(self, parent, title=_('Browse Locations'),
                            style=wx.DEFAULT_DIALOG_STYLE | wx.RESIZE_BORDER)
 
-        main_sizer = wx.FlexGridSizer(cols=1, hgap=0, rows=3, vgap=10)
+        self.DIRFILTERCHOICE_OPTIONS = dict(
+            [(_(option), filter) for option, filter in GetDirFilterChoiceOptions()])
+        main_sizer = wx.FlexGridSizer(cols=1, hgap=0, rows=4, vgap=10)
         main_sizer.AddGrowableCol(0)
         main_sizer.AddGrowableRow(1)
 
@@ -90,6 +89,15 @@ class BrowseLocationsDialog(wx.Dialog):
         self.Bind(wx.EVT_TREE_ITEM_ACTIVATED, self.OnLocationsTreeItemActivated,
                   self.LocationsTree)
         main_sizer.AddWindow(self.LocationsTree, border=20,
+                             flag=wx.LEFT | wx.RIGHT | wx.GROW)
+
+        self.RenameCheckBox = wx.CheckBox(self, label=_("Rename variable to signal name"))
+        self.Config = wx.ConfigBase.Get()
+        default_checked = self.Config.Read("RenameVariableOnLocationChange") == "True"
+        self.RenameCheckBox.SetValue(default_checked)
+        self.do_rename = default_checked
+
+        main_sizer.AddWindow(self.RenameCheckBox, border=20,
                              flag=wx.LEFT | wx.RIGHT | wx.GROW)
 
         button_gridsizer = wx.FlexGridSizer(cols=5, hgap=5, rows=1, vgap=0)
@@ -159,7 +167,7 @@ class BrowseLocationsDialog(wx.Dialog):
         self.Fit()
 
     def RefreshFilters(self):
-        self.DirFilter = DIRFILTERCHOICE_OPTIONS[self.DirFilterChoice.GetStringSelection()]
+        self.DirFilter = self.DIRFILTERCHOICE_OPTIONS[self.DirFilterChoice.GetStringSelection()]
         self.TypeFilter = self.TypeFilterChoice.GetSelection()
 
     def RefreshLocationsTree(self):
@@ -218,9 +226,14 @@ class BrowseLocationsDialog(wx.Dialog):
 
     def GetValues(self):
         selected = self.LocationsTree.GetSelection()
-        return self.LocationsTree.GetPyData(selected)
+        infos = self.LocationsTree.GetPyData(selected)
+        if not self.do_rename:
+            infos["var_name"] = None
+        return infos
 
     def OnOK(self, event):
+        self.do_rename = self.RenameCheckBox.IsChecked()
+        self.Config.Write("RenameVariableOnLocationChange", str(self.do_rename))
         selected = self.LocationsTree.GetSelection()
         var_infos = None
         if selected.IsOk():
