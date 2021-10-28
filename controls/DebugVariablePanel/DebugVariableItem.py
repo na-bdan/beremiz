@@ -144,7 +144,7 @@ class DebugVariableItem(DebugDataConsumer):
         """
         # Return immediately if data empty or none
         if self.Data is None or self.Data.count == 0:
-            return None
+            return []
 
         # Find nearest data outside given range indexes
         start_idx = (self.GetNearestData(start_tick, -1)
@@ -152,7 +152,7 @@ class DebugVariableItem(DebugDataConsumer):
                      else 0)
         end_idx = (self.GetNearestData(end_tick, 1)
                    if end_tick is not None
-                   else len(self.Data))
+                   else self.Data.count)
 
         # Return data between indexes
         return self.Data.view[start_idx:end_idx]

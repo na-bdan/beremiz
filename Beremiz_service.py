@@ -31,6 +31,7 @@ import sys
 import getopt
 import threading
 import shlex
+import traceback
 from threading import Thread, Semaphore, Lock, currentThread
 from builtins import str as text
 from past.builtins import execfile
@@ -223,6 +224,7 @@ if enablewx:
 
     if havewx:
         import re
+        import wx.adv
 
         if wx.VERSION >= (3, 0, 0):
             app = wx.App(redirect=False)
@@ -264,7 +266,7 @@ if enablewx:
             def SetTests(self, tests):
                 self.Tests = tests
 
-        class BeremizTaskBarIcon(wx.TaskBarIcon):
+        class BeremizTaskBarIcon(wx.adv.TaskBarIcon):
             TBMENU_START = wx.NewId()
             TBMENU_STOP = wx.NewId()
             TBMENU_CHANGE_NAME = wx.NewId()
@@ -276,7 +278,7 @@ if enablewx:
             TBMENU_QUIT = wx.NewId()
 
             def __init__(self, pyroserver):
-                wx.TaskBarIcon.__init__(self)
+                wx.adv.TaskBarIcon.__init__(self)
                 self.pyroserver = pyroserver
                 # Set the image
                 self.UpdateIcon(None)
@@ -324,7 +326,7 @@ if enablewx:
                 elif "wxGTK" in wx.PlatformInfo:
                     img = img.Scale(22, 22)
                 # wxMac can be any size upto 128x128, so leave the source img alone....
-                icon = wx.IconFromBitmap(img.ConvertToBitmap())
+                icon = wx.Icon(img.ConvertToBitmap())
                 return icon
 
             def OnTaskBarStartPLC(self, evt):
@@ -614,8 +616,11 @@ pyroserver.Quit()
 pyro_thread.join()
 
 plcobj = runtime.GetPLCObjectSingleton()
-plcobj.StopPLC()
-plcobj.UnLoadPLC()
+try:
+    plcobj.StopPLC()
+    plcobj.UnLoadPLC()
+except:
+    print(traceback.format_exc())
 
 if havetwisted:
     reactor.stop()

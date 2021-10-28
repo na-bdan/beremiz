@@ -36,7 +36,6 @@ from time import localtime
 import shutil
 import re
 import tempfile
-from threading import Timer
 from datetime import datetime
 from weakref import WeakKeyDictionary
 from functools import reduce
@@ -403,7 +402,7 @@ class ProjectController(ConfigTreeNode, PLCControler):
         return res
 
     # helper func to check project path write permission
-    def CheckProjectPathPerm(self, dosave=True):
+    def CheckProjectPathPerm(self):
         if CheckPathPerm(self.ProjectPath):
             return True
         if self.AppFrame is not None:
@@ -578,7 +577,7 @@ class ProjectController(ConfigTreeNode, PLCControler):
         return True
 
     def SaveProject(self, from_project_path=None):
-        if self.CheckProjectPathPerm(False):
+        if self.CheckProjectPathPerm():
             if from_project_path is not None:
                 old_projectfiles_path = self._getProjectFilesPath(
                     from_project_path)

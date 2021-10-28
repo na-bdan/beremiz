@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#.!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
 # This file is part of Beremiz, a Integrated Development Environment for
@@ -93,7 +93,7 @@ class CustomTreeCtrlWithRightImage(CT.CustomTreeCtrl):
             rect = wx.Rect(images_bbx.x + 4, images_bbx.y + 4,
                            r_image_w, r_image_h)
             for r_image in rightimages:
-                if rect.Inside(point):
+                if rect.Contains(point):
                     return r_image
                 rect.x += r_image_w + 4
 
@@ -132,7 +132,7 @@ class PouInstanceVariablesPanel(wx.Panel):
 
         self.ParentButton = wx.lib.buttons.GenBitmapButton(
             self, bitmap=GetBitmap("top"), size=wx.Size(28, 28), style=wx.NO_BORDER)
-        self.ParentButton.SetToolTipString(_("Parent instance"))
+        self.ParentButton.SetToolTip(_("Parent instance"))
         self.Bind(wx.EVT_BUTTON, self.OnParentButtonClick,
                   self.ParentButton)
 
@@ -142,7 +142,7 @@ class PouInstanceVariablesPanel(wx.Panel):
 
         self.DebugButton = wx.lib.buttons.GenBitmapButton(
             self, bitmap=GetBitmap("debug_instance"), size=wx.Size(28, 28), style=wx.NO_BORDER)
-        self.DebugButton.SetToolTipString(_("Debug instance"))
+        self.DebugButton.SetToolTip(_("Debug instance"))
         self.Bind(wx.EVT_BUTTON, self.OnDebugButtonClick,
                   self.DebugButton)
 
@@ -175,15 +175,15 @@ class PouInstanceVariablesPanel(wx.Panel):
                 self.DebugButtonCallback, self.DebugButtonDClickCallback)}
 
         buttons_sizer = wx.FlexGridSizer(cols=3, hgap=0, rows=1, vgap=0)
-        buttons_sizer.AddWindow(self.ParentButton)
-        buttons_sizer.AddWindow(self.InstanceChoice, flag=wx.GROW)
-        buttons_sizer.AddWindow(self.DebugButton)
+        buttons_sizer.Add(self.ParentButton)
+        buttons_sizer.Add(self.InstanceChoice, flag=wx.GROW)
+        buttons_sizer.Add(self.DebugButton)
         buttons_sizer.AddGrowableCol(1)
         buttons_sizer.AddGrowableRow(0)
 
         main_sizer = wx.FlexGridSizer(cols=1, hgap=0, rows=2, vgap=0)
-        main_sizer.AddSizer(buttons_sizer, flag=wx.GROW)
-        main_sizer.AddWindow(self.VariablesList, flag=wx.GROW)
+        main_sizer.Add(buttons_sizer, flag=wx.GROW)
+        main_sizer.Add(self.VariablesList, flag=wx.GROW)
         main_sizer.AddGrowableCol(0)
         main_sizer.AddGrowableRow(1)
 

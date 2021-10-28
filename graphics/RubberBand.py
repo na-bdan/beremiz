@@ -94,7 +94,7 @@ class RubberBand(object):
 
         # Change viewer mouse cursor to reflect a rubberband bounding box is
         # edited
-        self.DrawingSurface.SetCursor(wx.StockCursor(wx.CURSOR_CROSS))
+        self.DrawingSurface.SetCursor(wx.Cursor(wx.CURSOR_CROSS))
 
         self.Redraw()
 
@@ -195,3 +195,25 @@ class RubberBand(object):
         """
         # Erase last bbox and draw current bbox
         self.DrawBoundingBoxes([self.CurrentBBox], dc)
+
+
+def PatchRubberBandForGTK3():
+    """
+    GTK3 implementation of DC doesn't support SetLogicalFuntion(XOR)
+    Then Rubberband can't be erased by just redrawing it on the same place
+    So this is a complete refresh instead, eating a lot of CPU.
+    """
+    def Redraw(self, dc=None):
+        self.Viewer.Refresh()
+        self.Draw()
+
+    RubberBand.Redraw = Redraw
+
+    def Erase(self, dc=None):
+        self.Viewer.Refresh()
+
+    RubberBand.Erase = Erase
+
+
+if "gtk3" in wx.PlatformInfo:
+    PatchRubberBandForGTK3()

@@ -198,11 +198,19 @@ class TextViewer(EditorPanel):
     def Colourise(self, start, end):
         self.Editor.Colourise(start, end)
 
-    def StartStyling(self, pos, mask):
-        self.Editor.StartStyling(pos, mask)
+    def StartStyling(self, pos):
+        self.Editor.StartStyling(pos)
+
+    INDIC0 = 0
+    INDIC1 = 1
+    INDIC2 = 2
 
     def SetStyling(self, length, style):
         self.Editor.SetStyling(length, style)
+
+    def SetIndicatorCurrentFillRange(start, length, indic):
+        self.Editor.SetIndicatorCurrent(indic)
+        self.Editor.IndicatorFillRange(start, length)
 
     def GetCurrentPos(self):
         return self.Editor.GetCurrentPos()
@@ -369,7 +377,8 @@ class TextViewer(EditorPanel):
                     message = _("\"%s\" pou already exists!") % var_name
                 else:
                     if not var_name.upper() in [name.upper() for name in self.Controler.GetEditedElementVariables(self.TagName, self.Debug)]:
-                        self.Controler.AddEditedElementPouExternalVar(self.TagName, values[2], var_name)
+                        kwargs = dict(description=values[4]) if len(values)>4 else {}
+                        self.Controler.AddEditedElementPouExternalVar(self.TagName, values[2], var_name, **kwargs)
                         self.RefreshVariablePanel()
                         self.RefreshVariableTree()
                     event.SetDragText(var_name)
@@ -559,7 +568,7 @@ class TextViewer(EditorPanel):
             start_pos = last_styled_pos = self.Editor.GetLineEndPosition(line_number - 1) + 1
         self.RefreshLineFolding(line_number)
         end_pos = event.GetPosition()
-        self.StartStyling(start_pos, 0xff)
+        self.StartStyling(start_pos)
 
         current_context = self.Variables
         current_call = None
@@ -594,9 +603,8 @@ class TextViewer(EditorPanel):
                     else:
                         self.SetStyling(current_pos - last_styled_pos, STC_PLC_EMPTY)
                         if word not in ["]", ")"] and (self.GetCurrentPos() < last_styled_pos or self.GetCurrentPos() > current_pos):
-                            self.StartStyling(last_styled_pos, wx.stc.STC_INDICS_MASK)
-                            self.SetStyling(current_pos - last_styled_pos, wx.stc.STC_INDIC0_MASK)
-                            self.StartStyling(current_pos, 0xff)
+                            self.SetIndicatorCurrentFillRange(last_styled_pos, current_pos - last_styled_pos, self.INDIC0)
+                            self.StartStyling(current_pos)
                 else:
                     self.SetStyling(current_pos - last_styled_pos, STC_PLC_EMPTY)
                 last_styled_pos = current_pos
@@ -697,9 +705,8 @@ class TextViewer(EditorPanel):
                     else:
                         self.SetStyling(current_pos - last_styled_pos, STC_PLC_EMPTY)
                         if word not in ["]", ")"] and (self.GetCurrentPos() < last_styled_pos or self.GetCurrentPos() > current_pos):
-                            self.StartStyling(last_styled_pos, wx.stc.STC_INDICS_MASK)
-                            self.SetStyling(current_pos - last_styled_pos, wx.stc.STC_INDIC0_MASK)
-                            self.StartStyling(current_pos, 0xff)
+                            self.SetIndicatorCurrentFillRange(last_styled_pos, current_pos - last_styled_pos, self.INDIC0)
+                            self.StartStyling(current_pos)
                     if char == '.':
                         if word != "]":
                             if current_context is not None:
@@ -955,8 +962,8 @@ class TextViewer(EditorPanel):
             else:
                 highlight_end_pos = self.Editor.GetLineEndPosition(end[0] - 1) + end[1] - indent + 2
             if highlight_start_pos < end_pos and highlight_end_pos > start_pos:
-                self.StartStyling(highlight_start_pos, 0xff)
+                self.StartStyling(highlight_start_pos)
                 self.SetStyling(highlight_end_pos - highlight_start_pos, highlight_type)
-                self.StartStyling(highlight_start_pos, 0x00)
+                self.StartStyling(highlight_start_pos)
                 until_end = max(0, len(self.Editor.GetText()) - highlight_end_pos)
                 self.SetStyling(until_end, wx.stc.STC_STYLE_DEFAULT)
