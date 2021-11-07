@@ -274,7 +274,7 @@ class Beremiz(IDEFrame):
 
             self.Bind(wx.EVT_MENU, OpenExemple, item)
         parent.AppendSeparator()
-        parent.AppendMenu(wx.ID_ANY, _("&Tutorials and Examples"), self.TutorialsProjectsMenu)
+        parent.Append(wx.ID_ANY, _("&Tutorials and Examples"), self.TutorialsProjectsMenu)
 
         exemples_dir = Bpath("exemples")
         project_list = sorted(os.listdir(exemples_dir))
@@ -767,7 +767,7 @@ class Beremiz(IDEFrame):
                 text, id = infos
                 submenu = wx.Menu('')
                 self.GenerateMenuRecursive(kind, submenu)
-                menu.AppendMenu(id, text, submenu)
+                menu.Append(id, text, submenu)
             elif kind == wx.ITEM_SEPARATOR:
                 menu.AppendSeparator()
             else:

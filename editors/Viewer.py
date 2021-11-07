@@ -434,7 +434,7 @@ class ViewerDropTarget(wx.TextDropTarget):
             if len(child_tree) > 0:
                 child_menu = wx.Menu(title='')
                 self.GenerateTreeMenu(x, y, scaling, child_menu, child_path, var_class, child_tree)
-                menu.AppendMenu(wx.ID_ANY, "%s." % child_name, child_menu)
+                menu.Append(wx.ID_ANY, "%s." % child_name, child_menu)
 
     def GetAddVariableBlockFunction(self, x, y, scaling, var_class, var_name, var_type):
         def AddVariableFunction(event):
@@ -630,7 +630,7 @@ class Viewer(EditorPanel, DebugViewer):
 
             add_menu = wx.Menu(title='')
             self.AddAddMenuItems(add_menu)
-            menu.AppendMenu(-1, _(u'Add'), add_menu)
+            menu.Append(-1, _(u'Add'), add_menu)
 
         menu.AppendSeparator()
 
@@ -1657,7 +1657,7 @@ class Viewer(EditorPanel, DebugViewer):
         menu = wx.Menu(title='')
         align_menu = wx.Menu(title='')
         self.AddAlignmentMenuItems(align_menu)
-        menu.AppendMenu(-1, _(u'Alignment'), align_menu)
+        menu.Append(-1, _(u'Alignment'), align_menu)
         menu.AppendSeparator()
         self.AddDefaultMenuItems(menu, block=True)
         self.Editor.PopupMenu(menu)
