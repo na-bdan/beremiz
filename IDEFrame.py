@@ -1496,7 +1496,7 @@ class IDEFrame(wx.Frame):
     def GetTabsOpenedDClickFunction(self, tabctrl):
         def OnTabsOpenedDClick(event):
             pos = event.GetPosition()
-            if tabctrl.TabHitTest(pos.x, pos.y, None):
+            if tabctrl.TabHitTest(pos.x, pos.y):
                 self.SwitchPerspective(event)
             event.Skip()
         return OnTabsOpenedDClick
