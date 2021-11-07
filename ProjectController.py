@@ -1439,7 +1439,8 @@ class ProjectController(ConfigTreeNode, PLCControler):
             self.AppFrame.RefreshStatusToolBar()
 
     def UpdateButtons(self):
-        wx.CallAfter(self._UpdateButtons)
+        if self.AppFrame is not None:
+            wx.CallAfter(self._UpdateButtons)
 
     def UpdatePLCLog(self, log_count):
         if log_count:
