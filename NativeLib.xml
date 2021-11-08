@@ -82,6 +82,47 @@ TRIG0:=TRIG;
           </ST>
         </body>
       </pou>
+
+      <pou name="SIGNALEND" pouType="functionBlock">
+        <interface>
+          <inputVars>
+            <variable name="TRIG">
+              <type>
+                <BOOL/>
+              </type>
+            </variable>
+            <variable name="MSG">
+              <type>
+                <string/>
+              </type>
+            </variable>
+            <variable name="CODE">
+              <type>
+                <INT/>
+              </type>
+            </variable>
+          </inputVars>
+          <localVars>
+            <variable name="TRIG0">
+              <type>
+                <BOOL/>
+              </type>
+            </variable>
+          </localVars>
+        </interface>
+        <body>
+          <ST>
+<![CDATA[IF TRIG AND NOT TRIG0 THEN
+{{
+ SignalEnd((char*)GetFbVar(MSG, .body), GetFbVar(MSG, .len), GetFbVar(CODE));
+}}
+END_IF;
+TRIG0:=TRIG;
+]]>
+          </ST>
+        </body>
+      </pou>
+
     </pous>
   </types>
   <instances>
