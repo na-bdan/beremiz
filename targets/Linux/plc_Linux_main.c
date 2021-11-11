@@ -79,6 +79,7 @@ static pthread_mutex_t python_wait_mutex = PTHREAD_MUTEX_INITIALIZER;
 static pthread_mutex_t python_mutex = PTHREAD_MUTEX_INITIALIZER;
 static pthread_mutex_t debug_wait_mutex = PTHREAD_MUTEX_INITIALIZER;
 static pthread_mutex_t debug_mutex = PTHREAD_MUTEX_INITIALIZER;
+static pthread_mutex_t msg_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 int PLC_shutdown = 0;
 
@@ -117,6 +118,7 @@ int startPLC(int argc,char **argv)
     pthread_mutex_init(&debug_mutex, NULL);
     pthread_mutex_init(&python_wait_mutex, NULL);
     pthread_mutex_init(&python_mutex, NULL);
+    pthread_mutex_init(&msg_mutex, NULL);
 
     pthread_mutex_lock(&debug_wait_mutex);
     pthread_mutex_lock(&python_wait_mutex);
@@ -160,6 +162,7 @@ int stopPLC()
 	sem_destroy(&Run_PLC);
     timer_delete (PLC_timer);
     __cleanup();
+    pthread_mutex_destroy(&msg_mutex);
     pthread_mutex_destroy(&debug_wait_mutex);
     pthread_mutex_destroy(&debug_mutex);
     pthread_mutex_destroy(&python_wait_mutex);
@@ -245,7 +248,7 @@ typedef struct RT_to_nRT_signal_s RT_to_nRT_signal_t;
 
 #define _LogAndReturnNull(text) \
     {\
-    	char mstr[256] = text " for ";\
+	char mstr[256] = text " for ";\
         strncat(mstr, name, 255);\
         LogMessage(LOG_CRITICAL, mstr, strlen(mstr));\
         return NULL;\
@@ -255,7 +258,7 @@ void *create_RT_to_nRT_signal(char* name){
     RT_to_nRT_signal_t *sig = (RT_to_nRT_signal_t*)malloc(sizeof(RT_to_nRT_signal_t));
 
     if(!sig) 
-    	_LogAndReturnNull("Failed allocating memory for RT_to_nRT signal");
+	_LogAndReturnNull("Failed allocating memory for RT_to_nRT signal");
 
     pthread_cond_init(&sig->WakeCond, NULL);
     pthread_mutex_init(&sig->WakeCondLock, NULL);

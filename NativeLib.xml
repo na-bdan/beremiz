@@ -83,7 +83,7 @@ TRIG0:=TRIG;
         </body>
       </pou>
 
-      <pou name="SIGNALEND" pouType="functionBlock">
+      <pou name="DISPLAYMESSAGES" pouType="functionBlock">
         <interface>
           <inputVars>
             <variable name="TRIG">
@@ -91,12 +91,77 @@ TRIG0:=TRIG;
                 <BOOL/>
               </type>
             </variable>
-            <variable name="MSG">
+            <variable name="MSG1">
               <type>
                 <string/>
               </type>
             </variable>
-            <variable name="CODE">
+            <variable name="MSG2">
+              <type>
+                <string/>
+              </type>
+            </variable>
+            <variable name="MSG3">
+              <type>
+                <string/>
+              </type>
+            </variable>
+          </inputVars>
+          <localVars>
+            <variable name="TRIG0">
+              <type>
+                <BOOL/>
+              </type>
+            </variable>
+          </localVars>
+        </interface>
+        <body>
+          <ST>
+<![CDATA[IF TRIG AND NOT TRIG0 THEN
+{{
+  setPlcMessages((char*)GetFbVar(MSG1, .body), GetFbVar(MSG1, .len), (char*)GetFbVar(MSG2, .body), GetFbVar(MSG2, .len), (char*)GetFbVar(MSG3, .body), GetFbVar(MSG3, .len));
+}}
+END_IF;
+TRIG0:=TRIG;
+]]>
+          </ST>
+        </body>
+      </pou>
+
+      <pou name="DISPLAYBUTTONS" pouType="functionBlock">
+        <interface>
+          <inputVars>
+            <variable name="TRIG">
+              <type>
+                <BOOL/>
+              </type>
+            </variable>
+            <variable name="BTNTEXT1">
+              <type>
+                <string/>
+              </type>
+            </variable>
+            <variable name="BTNCODE1">
+              <type>
+                <INT/>
+              </type>
+            </variable>
+            <variable name="BTNTEXT2">
+              <type>
+                <string/>
+              </type>
+            </variable>
+            <variable name="BTNCODE2">
+              <type>
+                <INT/>
+              </type>
+            </variable>
+            <variable name="BTNTEXT3">
+              <type>
+                <string/>
+              </type>
+            </variable>
+            <variable name="BTNCODE3">
               <type>
                 <INT/>
               </type>
@@ -114,9 +179,55 @@ TRIG0:=TRIG;
           <ST>
 <![CDATA[IF TRIG AND NOT TRIG0 THEN
 {{
- SignalEnd((char*)GetFbVar(MSG, .body), GetFbVar(MSG, .len), GetFbVar(CODE));
+  setPlcButtons((char*)GetFbVar(BTNTEXT1, .body), GetFbVar(BTNTEXT1, .len), GetFbVar(BTNCODE1), (char*)GetFbVar(BTNTEXT2, .body), GetFbVar(BTNTEXT2, .len), GetFbVar(BTNCODE2), (char*)GetFbVar(BTNTEXT3, .body), GetFbVar(BTNTEXT3, .len), GetFbVar(BTNCODE3));
 }}
 END_IF;
+TRIG0:=TRIG;
+]]>
+          </ST>
+        </body>
+      </pou>
+
+      <pou name="BUTTONPRESSED" pouType="functionBlock">
+        <interface>
+          <inputVars>
+            <variable name="TRIG">
+              <type>
+                <BOOL/>
+              </type>
+            </variable>
+            <variable name="PROCESSED">
+              <type>
+                <BOOL/>
+              </type>
+            </variable>
+          </inputVars>
+          <outputVars>
+            <variable name="CODE">
+              <type>
+                <INT/>
+              </type>
+            </variable>
+          </outputVars>
+          <localVars>
+            <variable name="TRIG0">
+              <type>
+                <BOOL/>
+              </type>
+            </variable>
+          </localVars>
+        </interface>
+        <body>
+          <ST>
+<![CDATA[IF TRIG AND NOT TRIG0 THEN
+{{
+  setPlcButtonProcessed(GetFbVar(PROCESSED));
+}}
+END_IF;
+{{
+  int32_t code = getPlcButtonPressed();
+  SetFbVar(CODE, code);
+}}
 TRIG0:=TRIG;
 ]]>
           </ST>
