@@ -10,6 +10,7 @@
 #include <pthread.h>
 #include <locale.h>
 #include <semaphore.h>
+#include <unistd.h>
 
 static sem_t Run_PLC;
 
@@ -157,10 +158,11 @@ int stopPLC()
     /* Stop the PLC */
     PLC_shutdown = 1;
     sem_post(&Run_PLC);
+    sleep(1);
+    timer_delete(PLC_timer);
     PLC_SetTimer(0,0);
 	pthread_join(PLC_thread, NULL);
 	sem_destroy(&Run_PLC);
-    timer_delete (PLC_timer);
     __cleanup();
     pthread_mutex_destroy(&msg_mutex);
     pthread_mutex_destroy(&debug_wait_mutex);
