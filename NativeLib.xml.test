@@ -1,0 +1,278 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://www.plcopen.org/xml/tc6.xsd"
+         xsi:schemaLocation="http://www.plcopen.org/xml/tc6.xsd"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xmlns:xhtml="http://www.w3.org/1999/xhtml">
+  <fileHeader companyName="Unknown"
+              productName="Unnamed"
+              productVersion="1"
+              creationDateTime="2013-01-29T14:01:00"/>
+  <contentHeader name="Unnamed"
+                 modificationDateTime="2013-02-26T15:59:13">
+    <coordinateInfo>
+      <fbd>
+        <scaling x="0" y="0"/>
+      </fbd>
+      <ld>
+        <scaling x="0" y="0"/>
+      </ld>
+      <sfc>
+        <scaling x="0" y="0"/>
+      </sfc>
+    </coordinateInfo>
+  </contentHeader>
+  <types>
+    <dataTypes>
+      <dataType name="LOGLEVEL">
+        <baseType>
+          <enum>
+            <values>
+              <value name="CRITICAL"/>
+              <value name="WARNING"/>
+              <value name="INFO"/>
+              <value name="DEBUG"/>
+            </values>
+          </enum>
+        </baseType>
+        <initialValue>
+          <simpleValue value="INFO"/>
+        </initialValue>
+      </dataType>
+    </dataTypes>
+    <pous>
+      <pou name="LOGGER" pouType="functionBlock">
+        <interface>
+          <inputVars>
+            <variable name="TRIG">
+              <type>
+                <BOOL/>
+              </type>
+            </variable>
+            <variable name="MSG">
+              <type>
+                <string/>
+              </type>
+            </variable>
+            <variable name="LEVEL">
+              <type>
+                <derived name="LOGLEVEL"/>
+              </type>
+              <initialValue>
+                <simpleValue value="INFO"/>
+              </initialValue>
+            </variable>
+          </inputVars>
+          <localVars>
+            <variable name="TRIG0">
+              <type>
+                <BOOL/>
+              </type>
+            </variable>
+          </localVars>
+        </interface>
+        <body>
+          <ST>
+<![CDATA[IF TRIG AND NOT TRIG0 THEN
+{{
+ LogMessage(GetFbVar(LEVEL),(char*)GetFbVar(MSG, .body),GetFbVar(MSG, .len));
+}}
+END_IF;
+TRIG0:=TRIG;
+]]>
+          </ST>
+        </body>
+      </pou>
+
+      <pou name="DISPLAYMESSAGES" pouType="functionBlock">
+        <interface>
+          <inputVars>
+            <variable name="TRIG">
+              <type>
+                <BOOL/>
+              </type>
+            </variable>
+            <variable name="MSG1">
+              <type>
+                <string/>
+              </type>
+            </variable>
+            <variable name="MSG2">
+              <type>
+                <string/>
+              </type>
+            </variable>
+            <variable name="MSG3">
+              <type>
+                <string/>
+              </type>
+            </variable>
+          </inputVars>
+          <localVars>
+            <variable name="TRIG0">
+              <type>
+                <BOOL/>
+              </type>
+            </variable>
+            <variable name="MSG">
+              <type>
+                <string/>
+              </type>
+            </variable>
+          </localVars>
+        </interface>
+        <body>
+          <ST>
+<![CDATA[IF TRIG AND NOT TRIG0 THEN
+MSG := CONCAT(MSG1, MSG2, MSG3);
+{{
+// DisplayMessages((char*)GetFbVar(MSG, .body), GetFbVar(MSG, .len), (char*)GetFbVar(MSG1, .body), GetFbVar(MSG1, .len), (char*)GetFbVar(MSG2, .body), GetFbVar(MSG2, .len));
+  LogMessage(1, (char*)GetFbVar(MSG, .body), GetFbVar(MSG, .len));
+}}
+END_IF;
+TRIG0:=TRIG;
+]]>
+          </ST>
+        </body>
+      </pou>
+
+      <pou name="DISPLAYBUTTONS" pouType="functionBlock">
+        <interface>
+          <inputVars>
+            <variable name="TRIG">
+              <type>
+                <BOOL/>
+              </type>
+            </variable>
+            <variable name="BTNTEXT1">
+              <type>
+                <string/>
+              </type>
+            </variable>
+            <variable name="BTNCODE1">
+              <type>
+                <INT/>
+              </type>
+            </variable>
+            <variable name="BTNTEXT2">
+              <type>
+                <string/>
+              </type>
+            </variable>
+            <variable name="BTNCODE2">
+              <type>
+                <INT/>
+              </type>
+            </variable>
+            <variable name="BTNTEXT3">
+              <type>
+                <string/>
+              </type>
+            </variable>
+            <variable name="BTNCODE3">
+              <type>
+                <INT/>
+              </type>
+            </variable>
+          </inputVars>
+          <localVars>
+            <variable name="TRIG0">
+              <type>
+                <BOOL/>
+              </type>
+            </variable>
+            <variable name="MSG">
+              <type>
+                <string/>
+              </type>
+            </variable>
+            <variable name="CODESTR1">
+              <type>
+                <string/>
+              </type>
+            </variable>
+            <variable name="CODESTR2">
+              <type>
+                <string/>
+              </type>
+            </variable>
+            <variable name="CODESTR3">
+              <type>
+                <string/>
+              </type>
+            </variable>
+          </localVars>
+        </interface>
+        <body>
+          <ST>
+<![CDATA[IF TRIG AND NOT TRIG0 THEN
+CODESTR1 := INT_TO_STRING(BTNCODE1);
+CODESTR2 := INT_TO_STRING(BTNCODE2);
+CODESTR3 := INT_TO_STRING(BTNCODE3);
+MSG := CONCAT('BUTTON1: ', BTNTEXT1, 'CODE1: ', CODESTR1, 'BUTTON2: ', BTNTEXT2, 'CODE2: ', CODESTR2, 'BUTTON3: ', BTNTEXT3, 'CODE3: ', CODESTR3);
+{{
+// DisplayButtons((char*)GetFbVar(BTNTEXT1, .body), GetFbVar(BTNTEXT1, .len), GetFbVar(BTNCODE1), (char*)GetFbVar(BTNTEXT2, .body), GetFbVar(BTNTEXT2, .len), GetFbVar(BTNCODE2), (char*)GetFbVar(BTNTEXT3, .body), GetFbVar(BTNTEXT3, .len), GetFbVar(BTNCODE3));
+  LogMessage(1, (char*)GetFbVar(MSG, .body), GetFbVar(MSG, .len));
+}}
+END_IF;
+TRIG0:=TRIG;
+]]>
+          </ST>
+        </body>
+      </pou>
+
+      <pou name="BUTTONPRESSED" pouType="functionBlock">
+        <interface>
+          <inputVars>
+            <variable name="TRIG">
+              <type>
+                <BOOL/>
+              </type>
+            </variable>
+            <variable name="PROCESSED">
+              <type>
+                <BOOL/>
+              </type>
+            </variable>
+          </inputVars>
+          <outputVars>
+            <variable name="CODE">
+              <type>
+                <INT/>
+              </type>
+            </variable>
+          </outputVars>
+          <localVars>
+            <variable name="TRIG0">
+              <type>
+                <BOOL/>
+              </type>
+            </variable>
+            <variable name="MSG">
+              <type>
+                <string/>
+              </type>
+            </variable>
+          </localVars>
+        </interface>
+        <body>
+          <ST>
+<![CDATA[IF TRIG AND NOT TRIG0 THEN
+MSG := 'BUTTONPRESSED is processed.';
+{{
+//  ButtonProcessed(GetFbVar(PROCESSED));
+  LogMessage(1, (char*)GetFbVar(MSG, .body), GetFbVar(MSG, .len));
+}}
+CODE := 0;
+END_IF;
+TRIG0:=TRIG;
+]]>
+          </ST>
+        </body>
+      </pou>
+
+    </pous>
+  </types>
+  <instances>
+    <configurations/>
+  </instances>
+</project>
