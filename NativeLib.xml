@@ -221,6 +221,9 @@ TRIG0:=TRIG;
           <ST>
 <![CDATA[IF TRIG AND NOT TRIG0 THEN
 {{
+  IF PROCESSED THEN
+    CODE:=0;
+  END_IF;
   setPlcButtonProcessed(GetFbVar(PROCESSED));
 }}
 END_IF;
